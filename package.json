@@ -1,0 +1,16 @@
+{
+  "name": "wall-vr-controller",
+  "version": "0.1.0",
+  "main": "main.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0"
+  }
+}

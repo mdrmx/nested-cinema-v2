@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,maximum-scale=1"
+    />
+    <title>VR Client</title>
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <style>
+      body {
+        margin: 0;
+        background: #000;
+        font-family: system-ui, sans-serif;
+      }
+      #ui {
+        position: fixed;
+        left: 12px;
+        top: 12px;
+        z-index: 10;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      button {
+        font-size: 16px;
+        padding: 10px 12px;
+      }
+      #status {
+        color: #fff;
+        padding: 8px 10px;
+        background: rgba(0, 0, 0, 0.5);
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="ui">
+      <button id="enable">Enable playback</button>
+      <button id="enterVR">Enter VR</button>
+      <div id="status">Not connected</div>
+    </div>
+
+    <!-- Hidden HTML5 video feeding the sphere texture -->
+    <video
+      id="v"
+      playsinline
+      webkit-playsinline
+      crossorigin="anonymous"
+    ></video>
+
+    <a-scene embedded vr-mode-ui="enabled: true">
+      <a-assets></a-assets>
+      <a-videosphere id="sphere" src="#v" rotation="0 -90 0"></a-videosphere>
+      <a-entity camera look-controls position="0 1.6 0"></a-entity>
+    </a-scene>
+
+    <script src="/mobile/vr.js"></script>
+  </body>
+</html>
