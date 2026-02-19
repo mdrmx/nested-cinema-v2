@@ -1,4 +1,5 @@
-const { app, BrowserWindow, screen } = require("electron");
+const { ipcMain, app, BrowserWindow, screen } = require("electron");
+
 const path = require("path");
 const fs = require("fs");
 const http = require("http");
@@ -82,6 +83,14 @@ const cueEngine = {
   tick(currentTime) {
     const last = this.lastTime;
     this.lastTime = currentTime;
+
+    if (controlWin && !controlWin.isDestroyed()) {
+      controlWin.webContents.send("op:tick", {
+        playhead: getPlayheadSeconds(),
+        playing: timeline.playing,
+        duration: wallDuration,
+      });
+    }
 
     // Only fire when moving forward
     if (currentTime < last) return;
@@ -181,17 +190,67 @@ function wsBroadcast(obj) {
   }
 }
 
+// -------------------- IPC handlers for controls window (via preload) --------------------
+let controlWin;
+let wallDuration = 600;
+
+ipcMain.handle("op:play", () => {
+  console.log("[IPC] op:play");
+  play();
+  return { ok: true };
+});
+
+ipcMain.handle("op:pause", () => {
+  console.log("[IPC] op:pause");
+  pause();
+  return { ok: true };
+});
+
+ipcMain.handle("op:stop", () => {
+  console.log("[IPC] op:stop");
+  pause();
+  seek(0);
+  return { ok: true };
+});
+
+ipcMain.handle("op:seek", (_e, t) => {
+  console.log("[IPC] op:seek", t);
+  seek(t);
+  return { ok: true };
+});
+
+ipcMain.handle("op:setDuration", (_e, d) => {
+  console.log("[IPC] op:setDuration", d);
+  wallDuration = d;
+  return { ok: true };
+});
+
+function createControlWindow() {
+  controlWin = new BrowserWindow({
+    width: 760,
+    height: 420,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: path.join(__dirname, "controls", "preload.js"),
+    },
+  });
+
+  controlWin.loadURL(
+    `file://${path.join(__dirname, "controls", "controls.html")}`,
+  );
+}
+
 // -------------------- Wall windows + IPC via postMessage --------------------
 // (Simplest: use webContents.send without a preload by disabling contextIsolation,
 // but we’ll keep contextIsolation and just use URL + minimal messaging via webContents.)
 const wallWindows = [];
-
 function broadcastState() {
   const payload = {
     type: "state",
     playing: timeline.playing,
     rate: timeline.rate,
-    offset: timeline.offset,
+    offset: getPlayheadSeconds(), // ✅ IMPORTANT
     t0: timeline.t0,
   };
 
@@ -208,6 +267,14 @@ function createWallWindows() {
   const selected = displays.slice(0, 3);
 
   selected.forEach((d, i) => {
+    const wallPreloadPath = path.join(__dirname, "renderer-wall", "preload.js");
+    console.log(
+      "[MAIN] wall preload path:",
+      wallPreloadPath,
+      "exists:",
+      fs.existsSync(wallPreloadPath),
+    );
+
     const win = new BrowserWindow({
       x: d.bounds.x,
       y: d.bounds.y,
@@ -217,18 +284,26 @@ function createWallWindows() {
       frame: false,
       autoHideMenuBar: true,
       backgroundColor: "#000000",
+
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
         backgroundThrottling: false,
-        preload: path.join(__dirname, "renderer-wall", "preload.js"),
+        preload: wallPreloadPath,
       },
+    });
+    win.webContents.on("console-message", (_e, level, message) => {
+      console.log(`[WALL console ${level}]`, message);
+    });
+
+    win.webContents.once("did-finish-load", () => {
+      win.webContents.openDevTools({ mode: "detach" });
     });
 
     const url = `file://${path.join(__dirname, "renderer-wall", "wall.html")}?screen=${i}`;
     win.loadURL(url);
     win.webContents.openDevTools({ mode: "detach" });
-
+    // controlWin.webContents.openDevTools({ mode: "detach" });
     wallWindows.push(win);
   });
 }
@@ -250,8 +325,10 @@ function startMasterTick() {
 app.whenReady().then(() => {
   startHttpServer();
   startWsServer();
+  createControlWindow();
 
   createWallWindows();
+
   startMasterTick();
 
   // Start paused at 0
