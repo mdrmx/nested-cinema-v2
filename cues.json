@@ -1,5 +1,5 @@
 [
-  { "time": 12.0, "type": "trigger360", "clipId": "intro360" },
-  { "time": 47.5, "type": "trigger360", "clipId": "tunnel" },
+  { "time": 5.0, "type": "trigger360", "clipId": "vr1" },
+  { "time": 47.5, "type": "trigger360", "clipId": "vr2" },
   { "time": 92.0, "type": "stop360" }
 ]

@@ -2,15 +2,28 @@ const { ipcMain, app, BrowserWindow, screen } = require("electron");
 
 const path = require("path");
 const fs = require("fs");
-const http = require("http");
+const https = require("https");
+const os = require("os");
 
 const express = require("express");
 const WebSocket = require("ws");
 
 // -------------------- Config --------------------
-const HTTP_PORT = 5173; // mobile web (http)
-const WS_PORT = 5174; // websocket commands
+const HTTPS_PORT = 5173; // HTTPS + WSS on the same port
 const TICK_HZ = 30; // master clock tick
+
+const TLS_CERT = fs.readFileSync(path.join(__dirname, "certs", "cert.pem"));
+const TLS_KEY = fs.readFileSync(path.join(__dirname, "certs", "key.pem"));
+
+// Dynamically resolve the active LAN IPv4 address
+function getLanIp() {
+  for (const ifaces of Object.values(os.networkInterfaces())) {
+    for (const iface of ifaces) {
+      if (iface.family === "IPv4" && !iface.internal) return iface.address;
+    }
+  }
+  return "<unknown>";
+}
 
 const MEDIA_ROOT = path.join(__dirname, "media");
 const WALL_MEDIA_DIR = path.join(MEDIA_ROOT, "wall");
@@ -119,10 +132,12 @@ function fireCue(cue) {
   }
 }
 
-// -------------------- HTTP server for mobile + 360 media --------------------
+// -------------------- HTTPS server for mobile + 360 media --------------------
+let httpsServer;
+
 function startHttpServer() {
   const ex = express();
-  //wall media
+  // wall media
   ex.use("/wallmedia", express.static(WALL_MEDIA_DIR));
   // mobile app
   ex.use("/mobile", express.static(path.join(__dirname, "mobile")));
@@ -140,29 +155,35 @@ function startHttpServer() {
     res.sendFile(path.join(__dirname, "mobile", "vr.html"));
   });
 
-  // optional: expose a simple status page
+  // expose a simple status page
   ex.get("/status", (req, res) => {
     res.json({
       playing: timeline.playing,
       playhead: getPlayheadSeconds(),
-      wsPort: WS_PORT,
+      wsPort: HTTPS_PORT,
     });
   });
 
-  const server = http.createServer(ex);
-  server.listen(HTTP_PORT, () => {
-    console.log(`HTTP server: http://localhost:${HTTP_PORT}/vr`);
+  httpsServer = https.createServer({ cert: TLS_CERT, key: TLS_KEY }, ex);
+  httpsServer.listen(HTTPS_PORT, () => {
+    const lanIp = getLanIp();
+    console.log(`HTTPS server: https://localhost:${HTTPS_PORT}/vr`);
+    console.log(`              https://${lanIp}:${HTTPS_PORT}/vr  (LAN IP)`);
+    console.log(
+      `              https://mdrmx.local:${HTTPS_PORT}/vr  (LAN hostname)`,
+    );
   });
 }
 
-// -------------------- WebSocket server (mobile triggers + optional control) --------------------
+// -------------------- WebSocket server (WSS — attached to HTTPS server) --------------------
 let wss;
 
 function startWsServer() {
-  wss = new WebSocket.Server({ port: WS_PORT });
+  // Attach WSS to the same TLS server so browsers allow it from an HTTPS page
+  wss = new WebSocket.Server({ server: httpsServer });
 
   wss.on("connection", (ws) => {
-    ws.send(JSON.stringify({ type: "hello", wsPort: WS_PORT }));
+    ws.send(JSON.stringify({ type: "hello", wsPort: HTTPS_PORT }));
 
     ws.on("message", (raw) => {
       let msg;
@@ -179,7 +200,7 @@ function startWsServer() {
     });
   });
 
-  console.log(`WS server: ws://localhost:${WS_PORT}`);
+  console.log(`WSS server attached to HTTPS port ${HTTPS_PORT}`);
 }
 
 function wsBroadcast(obj) {

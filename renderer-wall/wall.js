@@ -6,7 +6,7 @@ const screenIndex = Number(params.get("screen") || 0);
 const video = document.getElementById("vid");
 if (!video) throw new Error("No #vid element");
 
-video.src = `http://localhost:5173/wallmedia/screen${screenIndex}.mp4`;
+video.src = `https://localhost:5173/wallmedia/screen${screenIndex}.mp4`;
 video.preload = "auto";
 video.playsInline = true;
 video.autoplay = false;
