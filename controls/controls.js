@@ -49,7 +49,7 @@ seek.addEventListener("change", async () => {
 });
 
 window.op.onTick(({ playhead, playing, duration }) => {
-  tEl.textContent = `t=${playhead.toFixed(2)} ${playing ? "(playing)" : "(paused)"}`;
+  tEl.textContent = `${playhead.toFixed(2)} ${playing ? "(playing)" : "(paused)"}`;
   if (!seek.matches(":active")) {
     if (duration) seek.max = String(duration);
     seek.value = String(playhead);
@@ -166,7 +166,10 @@ function renderCues(cues) {
       }
       input.addEventListener("blur", commitTime);
       input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          input.blur();
+        }
         if (e.key === "Escape") {
           input.removeEventListener("blur", commitTime);
           timeTd.textContent = Number(tr.dataset.time).toFixed(2);
@@ -207,7 +210,7 @@ function renderCues(cues) {
     // --- Clip cell (click → select; hidden for stop360) ---
     const clipTd = document.createElement("td");
     const isStop = cue.type === "stop360";
-    clipTd.textContent = isStop ? "—" : (cue.clipId || "vr1");
+    clipTd.textContent = isStop ? "—" : cue.clipId || "vr1";
     if (!isStop) {
       clipTd.dataset.editable = "1";
       clipTd.addEventListener("click", () => {
@@ -257,7 +260,11 @@ function renderCues(cues) {
 
 // Adds a new default cue row — user can immediately click cells to edit values
 addCueBtn.addEventListener("click", async () => {
-  const result = await window.op.setCue({ time: 0, type: "trigger360", clipId: "vr1" });
+  const result = await window.op.setCue({
+    time: 0,
+    type: "trigger360",
+    clipId: "vr1",
+  });
   if (result.ok) renderCues(result.cues);
 });
 
