@@ -310,9 +310,7 @@ function createControlWindow() {
     },
   });
 
-  controlWin.loadURL(
-    `file://${path.join(__dirname, "controls", "controls.html")}`,
-  );
+  controlWin.loadFile(path.join(__dirname, "controls", "controls.html"));
 }
 
 // -------------------- Wall windows + IPC via postMessage --------------------
@@ -377,8 +375,9 @@ function createWallWindows() {
       win.webContents.openDevTools({ mode: "detach" });
     });
 
-    const url = `file://${path.join(__dirname, "renderer-wall", "wall.html")}?screen=${i}`;
-    win.loadURL(url);
+    win.loadFile(path.join(__dirname, "renderer-wall", "wall.html"), {
+      query: { screen: String(i) },
+    });
     win.webContents.openDevTools({ mode: "detach" });
     // controlWin.webContents.openDevTools({ mode: "detach" });
     wallWindows.push(win);
