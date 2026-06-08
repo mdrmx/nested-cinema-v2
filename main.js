@@ -246,6 +246,49 @@ ipcMain.handle("op:setDuration", (_e, d) => {
   return { ok: true };
 });
 
+// Returns the current cues array
+ipcMain.handle("op:getCues", () => cues);
+
+// Upserts a cue. If a cue already exists at the same time it is replaced;
+// otherwise the new cue is inserted and the array is re-sorted by time.
+// Persists the result back to cues.json and re-arms the cue engine.
+ipcMain.handle("op:setCue", (_e, cue) => {
+  const time = Number(cue.time);
+  if (!Number.isFinite(time)) return { ok: false, error: "invalid time" };
+  const type = cue.type === "stop360" ? "stop360" : "trigger360";
+  const newCue = { time, type };
+  if (type === "trigger360") newCue.clipId = cue.clipId || "vr1";
+
+  const idx = cues.findIndex((c) => c.time === time);
+  if (idx >= 0) {
+    cues[idx] = newCue;
+  } else {
+    cues.push(newCue);
+    cues.sort((a, b) => a.time - b.time);
+  }
+  fs.writeFileSync(
+    path.join(__dirname, "cues.json"),
+    JSON.stringify(cues, null, 2),
+  );
+  cueEngine.onSeek(getPlayheadSeconds()); // re-arm so updated cues fire correctly
+  console.log("[IPC] op:setCue", newCue);
+  return { ok: true, cues };
+});
+
+// Deletes a cue by its index in the sorted array and persists the result.
+ipcMain.handle("op:deleteCue", (_e, index) => {
+  if (index < 0 || index >= cues.length)
+    return { ok: false, error: "index out of range" };
+  const removed = cues.splice(index, 1)[0];
+  fs.writeFileSync(
+    path.join(__dirname, "cues.json"),
+    JSON.stringify(cues, null, 2),
+  );
+  cueEngine.onSeek(getPlayheadSeconds());
+  console.log("[IPC] op:deleteCue", removed);
+  return { ok: true, cues };
+});
+
 // screenIndex: 0-based wall window index; videoFile: filename under /wallmedia/ e.g. "screen1.mp4"
 ipcMain.handle("op:setVideo", (_e, { screenIndex, videoFile }) => {
   const win = wallWindows[screenIndex];

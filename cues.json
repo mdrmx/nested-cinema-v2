@@ -1,5 +1,16 @@
 [
-  { "time": 5.0, "type": "trigger360", "clipId": "vr1" },
-  { "time": 47.5, "type": "trigger360", "clipId": "vr2" },
-  { "time": 92.0, "type": "stop360" }
+  {
+    "time": 25,
+    "type": "trigger360",
+    "clipId": "vr1"
+  },
+  {
+    "time": 47.5,
+    "type": "trigger360",
+    "clipId": "vr2"
+  },
+  {
+    "time": 70,
+    "type": "stop360"
+  }
 ]
