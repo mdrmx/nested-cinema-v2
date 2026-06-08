@@ -50,3 +50,50 @@ window.op.onTick(({ playhead, playing, duration }) => {
     seek.value = String(playhead);
   }
 });
+
+// -------------------- Screen video assignment --------------------
+const WALL_VIDEOS = [
+  "screen0.mp4",
+  "screen1.mp4",
+  "screen2.mp4",
+  "screen3.mp4",
+];
+const NUM_SCREENS = 3; // matches createWallWindows slice(0, 3)
+const assignContainer = document.getElementById("screenAssign");
+
+for (let i = 0; i < NUM_SCREENS; i++) {
+  const row = document.createElement("div");
+  row.className = "row";
+
+  const label = document.createElement("label");
+  label.textContent = `Screen ${i}:`;
+  label.style.minWidth = "70px";
+
+  const select = document.createElement("select");
+  select.id = `screenSel${i}`;
+  WALL_VIDEOS.forEach((f) => {
+    const opt = document.createElement("option");
+    opt.value = f;
+    opt.textContent = f;
+    if (f === `screen${i}.mp4`) opt.selected = true;
+    select.appendChild(opt);
+  });
+
+  const btn = document.createElement("button");
+  btn.textContent = "Assign";
+  btn.onclick = async () => {
+    const videoFile = select.value;
+    try {
+      await window.op.setVideo(i, videoFile);
+      btn.textContent = "✓ Assigned";
+      setTimeout(() => (btn.textContent = "Assign"), 1500);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  row.appendChild(label);
+  row.appendChild(select);
+  row.appendChild(btn);
+  assignContainer.appendChild(row);
+}

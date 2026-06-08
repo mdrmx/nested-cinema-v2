@@ -8,5 +8,7 @@ contextBridge.exposeInMainWorld("op", {
   stop: () => ipcRenderer.invoke("op:stop"),
   seek: (t) => ipcRenderer.invoke("op:seek", t),
   setDuration: (d) => ipcRenderer.invoke("op:setDuration", d),
+  setVideo: (screenIndex, videoFile) =>
+    ipcRenderer.invoke("op:setVideo", { screenIndex, videoFile }),
   onTick: (cb) => ipcRenderer.on("op:tick", (_e, payload) => cb(payload)),
 });

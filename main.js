@@ -246,6 +246,16 @@ ipcMain.handle("op:setDuration", (_e, d) => {
   return { ok: true };
 });
 
+// screenIndex: 0-based wall window index; videoFile: filename under /wallmedia/ e.g. "screen1.mp4"
+ipcMain.handle("op:setVideo", (_e, { screenIndex, videoFile }) => {
+  const win = wallWindows[screenIndex];
+  if (!win || win.isDestroyed())
+    return { ok: false, error: "window not found" };
+  win.webContents.send("wall:setVideo", { videoFile });
+  console.log(`[IPC] op:setVideo screen=${screenIndex} file=${videoFile}`);
+  return { ok: true };
+});
+
 function createControlWindow() {
   controlWin = new BrowserWindow({
     width: 760,

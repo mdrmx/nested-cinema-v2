@@ -14,6 +14,17 @@ video.loop = false;
 video.muted = true;
 video.controls = false;
 
+// Allow operator to hot-swap the video file without restarting
+window.timeline.onSetVideo(({ videoFile }) => {
+  const wasPlaying = !video.paused;
+  const t = video.currentTime;
+  video.src = `https://localhost:5173/wallmedia/${videoFile}`;
+  video.load();
+  video.currentTime = t;
+  if (wasPlaying) video.play().catch(() => {});
+  console.log(`[WALL ${screenIndex}] video swapped to ${videoFile}`);
+});
+
 const HARD_SNAP = 0.12;
 const SOFT_NUDGE = 0.04;
 

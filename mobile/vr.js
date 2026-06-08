@@ -1,5 +1,4 @@
 const statusEl = document.getElementById("status");
-const enableBtn = document.getElementById("enable");
 
 let ws;
 const wsUrl = `wss://${location.host}`;
@@ -13,8 +12,8 @@ function prepareVideos() {
   const v2 = document.querySelector("#vr2");
   v1.load();
   v2.load();
-  v1.addEventListener("canplaythrough", () => console.log("vr1 buffered and ready"));
-  v2.addEventListener("canplaythrough", () => console.log("vr2 buffered and ready"));
+  v1.addEventListener("canplaythrough", () => console.log("vr1 ready"));
+  v2.addEventListener("canplaythrough", () => console.log("vr2 ready"));
 }
 
 function handlePlayVideo(data = {}) {
@@ -46,16 +45,6 @@ function handlePauseVideo() {
   setStatus("Stopped");
 }
 
-enableBtn.addEventListener("click", () => {
-  document.querySelector("#vr1").muted = false;
-  document.querySelector("#vr2").muted = false;
-  enableBtn.textContent = "Audio enabled";
-  setStatus("Audio unlocked — waiting for trigger");
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: "ready", canPlay: true }));
-  }
-});
-
 document.getElementById("enterVR").addEventListener("click", () => {
   const scene = document.querySelector("a-scene");
   if (scene && scene.enterVR) scene.enterVR();
@@ -64,8 +53,8 @@ document.getElementById("enterVR").addEventListener("click", () => {
 function connect() {
   ws = new WebSocket(wsUrl);
   ws.onopen = () => {
-    setStatus("Connected — tap Enable to unlock audio");
-    ws.send(JSON.stringify({ type: "ready", canPlay: false }));
+    setStatus("Connected");
+    ws.send(JSON.stringify({ type: "ready" }));
   };
   ws.onclose = () => {
     setStatus("Disconnected (reconnecting...)");
