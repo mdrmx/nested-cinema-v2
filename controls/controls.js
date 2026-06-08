@@ -1,5 +1,4 @@
-console.log("controls.js loaded ✅", window.op);
-
+// -------------------- Playback controls --------------------
 const playBtn = document.getElementById("play");
 const pauseBtn = document.getElementById("pause");
 const stopBtn = document.getElementById("stop");
@@ -8,7 +7,6 @@ const seekBtn = document.getElementById("seekBtn");
 const tEl = document.getElementById("t");
 
 playBtn.onclick = async () => {
-  console.log("PLAY click");
   try {
     await window.op.play();
   } catch (e) {
@@ -17,7 +15,6 @@ playBtn.onclick = async () => {
 };
 
 pauseBtn.onclick = async () => {
-  console.log("PAUSE click");
   try {
     await window.op.pause();
   } catch (e) {
@@ -26,7 +23,6 @@ pauseBtn.onclick = async () => {
 };
 
 stopBtn.onclick = async () => {
-  console.log("STOP click");
   try {
     await window.op.stop();
   } catch (e) {
@@ -35,7 +31,6 @@ stopBtn.onclick = async () => {
 };
 
 seekBtn.onclick = async () => {
-  console.log("SEEK click", seek.value);
   try {
     await window.op.seek(Number(seek.value));
   } catch (e) {
