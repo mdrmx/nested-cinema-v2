@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "node-fetch": "^2.7.0",
+    "npm": "^11.5.2",
+    "socket.io-client": "^4.8.1",
+    "uninstall": "^0.0.0",
+    "ws": "^8.18.3"
+  }
+}

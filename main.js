@@ -332,6 +332,9 @@ function broadcastState() {
     if (!win || win.isDestroyed()) continue;
     win.webContents.send("timeline:state", payload);
   }
+
+  // Also broadcast to all WebSocket clients (e.g. Max/MSP sound client)
+  wsBroadcast(payload);
 }
 
 function createWallWindows() {
