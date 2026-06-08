@@ -10,6 +10,7 @@ const WebSocket = require("ws");
 
 // -------------------- Config --------------------
 const HTTPS_PORT = 5173; // HTTPS + WSS on the same port
+const HTTP_CA_PORT = 5174; // plain HTTP — CA download only
 const TICK_HZ = 30; // master clock tick
 
 const TLS_CERT = fs.readFileSync(path.join(__dirname, "certs", "cert.pem"));
@@ -30,7 +31,7 @@ const WALL_MEDIA_DIR = path.join(MEDIA_ROOT, "wall");
 const VR_MEDIA_DIR = path.join(MEDIA_ROOT, "vr");
 
 const cues = JSON.parse(
-  fs.readFileSync(path.join(__dirname, "cues.json"), "utf-8"),
+  fs.readFileSync(path.join(__dirname, "cues.json"), "utf-8")
 );
 
 // -------------------- Master timeline clock --------------------
@@ -89,7 +90,7 @@ const cueEngine = {
       [...this.fired].filter((key) => {
         const t = Number(key.split("@")[0]);
         return t <= newTime;
-      }),
+      })
     );
   },
 
@@ -147,7 +148,7 @@ function startHttpServer() {
     "/media360",
     express.static(VR_MEDIA_DIR, {
       acceptRanges: true,
-    }),
+    })
   );
 
   // convenience route
@@ -170,8 +171,41 @@ function startHttpServer() {
     console.log(`HTTPS server: https://localhost:${HTTPS_PORT}/vr`);
     console.log(`              https://${lanIp}:${HTTPS_PORT}/vr  (LAN IP)`);
     console.log(
-      `              https://mdrmx.local:${HTTPS_PORT}/vr  (LAN hostname)`,
+      `              https://mdrmx.local:${HTTPS_PORT}/vr  (LAN hostname)`
     );
+  });
+}
+
+// -------------------- Plain HTTP server — CA download only --------------------
+// Phones can't reach the HTTPS server before trusting the CA (chicken-and-egg),
+// so we serve the CA file over plain HTTP on a separate port.
+function startCaServer() {
+  const CA_PATH = path.join(
+    process.env.LOCALAPPDATA || path.join(os.homedir(), ".local", "share"),
+    "mkcert",
+    "rootCA.pem"
+  );
+
+  if (!fs.existsSync(CA_PATH)) {
+    console.warn("[CA] rootCA.pem not found — run: mkcert -install");
+    return;
+  }
+
+  const http = require("http");
+  const caApp = express();
+
+  caApp.get("/rootca", (_req, res) => {
+    res.setHeader("Content-Type", "application/x-pem-file");
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="mkcert-rootCA.pem"'
+    );
+    res.sendFile(CA_PATH);
+  });
+
+  http.createServer(caApp).listen(HTTP_CA_PORT, () => {
+    const lanIp = getLanIp();
+    console.log(`CA download:  http://${lanIp}:${HTTP_CA_PORT}/rootca`);
   });
 }
 
@@ -268,7 +302,7 @@ ipcMain.handle("op:setCue", (_e, cue) => {
   }
   fs.writeFileSync(
     path.join(__dirname, "cues.json"),
-    JSON.stringify(cues, null, 2),
+    JSON.stringify(cues, null, 2)
   );
   cueEngine.onSeek(getPlayheadSeconds()); // re-arm so updated cues fire correctly
   console.log("[IPC] op:setCue", newCue);
@@ -282,7 +316,7 @@ ipcMain.handle("op:deleteCue", (_e, index) => {
   const removed = cues.splice(index, 1)[0];
   fs.writeFileSync(
     path.join(__dirname, "cues.json"),
-    JSON.stringify(cues, null, 2),
+    JSON.stringify(cues, null, 2)
   );
   cueEngine.onSeek(getPlayheadSeconds());
   console.log("[IPC] op:deleteCue", removed);
@@ -347,7 +381,7 @@ function createWallWindows() {
       "[MAIN] wall preload path:",
       wallPreloadPath,
       "exists:",
-      fs.existsSync(wallPreloadPath),
+      fs.existsSync(wallPreloadPath)
     );
 
     const win = new BrowserWindow({
@@ -386,20 +420,18 @@ function createWallWindows() {
 
 // -------------------- App lifecycle --------------------
 function startMasterTick() {
-  setInterval(
-    () => {
-      const t = getPlayheadSeconds();
-      cueEngine.tick(t);
+  setInterval(() => {
+    const t = getPlayheadSeconds();
+    cueEngine.tick(t);
 
-      // Push state periodically so windows can correct drift, even if no commands happen
-      broadcastState();
-    },
-    Math.round(1000 / TICK_HZ),
-  );
+    // Push state periodically so windows can correct drift, even if no commands happen
+    broadcastState();
+  }, Math.round(1000 / TICK_HZ));
 }
 
 app.whenReady().then(() => {
   startHttpServer();
+  startCaServer();
   startWsServer();
   createControlWindow();
 

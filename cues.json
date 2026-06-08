@@ -10,11 +10,6 @@
     "clipId": "vr1"
   },
   {
-    "time": 47.5,
-    "type": "trigger360",
-    "clipId": "vr1"
-  },
-  {
     "time": 70,
     "type": "stop360"
   }

@@ -4,7 +4,8 @@
   "main": "main.js",
   "type": "commonjs",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "gencerts": "node scripts/gencerts.js"
   },
   "dependencies": {
     "express": "^4.19.2",

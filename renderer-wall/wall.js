@@ -41,6 +41,9 @@ const SOFT_NUDGE = 0.04; // seconds — soft rate-nudge threshold
 let lastState = null;
 let stateReceivedAt = 0;
 
+// Guard to prevent overlapping video.play() calls, which cause AbortError cascades.
+let playPending = false;
+
 // Extrapolates the expected video position from the last known state.
 // If paused, returns the fixed offset; if playing, advances by elapsed wall-clock time.
 function targetFromState(state) {
@@ -65,12 +68,19 @@ async function applyState(state) {
     return;
   }
 
-  // Ensure the video is playing before measuring drift
-  if (video.paused) {
+  // Ensure the video is playing before measuring drift.
+  // Skip if a play() call is already in-flight (AbortError guard) or if the
+  // video hasn't buffered enough data yet (NotSupportedError / AbortError guard).
+  if (video.paused && !playPending) {
+    if (video.readyState < 2 /* HAVE_CURRENT_DATA */) return;
+    playPending = true;
     try {
       await video.play();
     } catch (e) {
       console.error("video.play failed", e);
+      return; // skip drift correction — video isn't playing
+    } finally {
+      playPending = false;
     }
   }
 
@@ -93,12 +103,12 @@ async function applyState(state) {
 
 // Diagnostic event listeners for monitoring playback health
 video.addEventListener("error", () =>
-  console.error("VIDEO ERROR", video.error, video.currentSrc),
+  console.error("VIDEO ERROR", video.error, video.currentSrc)
 );
 video.addEventListener("playing", () => console.log("VIDEO playing"));
 video.addEventListener("pause", () => console.log("VIDEO paused"));
 video.addEventListener("loadedmetadata", () =>
-  console.log("metadata duration", video.duration),
+  console.log("metadata duration", video.duration)
 );
 
 // Receive timeline state updates pushed from the main process via
