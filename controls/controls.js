@@ -5,7 +5,20 @@ const stopBtn = document.getElementById("stop");
 const seek = document.getElementById("seek");
 const tEl = document.getElementById("t");
 
-// Note: these controls are just for demo purposes. In a real app, you'd want to handle state updates from the main process
+const dur = document.getElementById("dur");
+const setDurBtn = document.getElementById("setDur");
+
+setDurBtn.onclick = async () => {
+  const d = Number(dur.value);
+  if (!Number.isFinite(d) || d <= 0) return;
+  try {
+    await window.op.setDuration(d);
+    seek.max = String(d);
+  } catch (e) {
+    console.error(e);
+  }
+};
+
 playBtn.onclick = async () => {
   try {
     await window.op.play();

@@ -31,7 +31,7 @@ const WALL_MEDIA_DIR = path.join(MEDIA_ROOT, "wall");
 const VR_MEDIA_DIR = path.join(MEDIA_ROOT, "vr");
 
 const cues = JSON.parse(
-  fs.readFileSync(path.join(__dirname, "cues.json"), "utf-8")
+  fs.readFileSync(path.join(__dirname, "cues.json"), "utf-8"),
 );
 
 // -------------------- Master timeline clock --------------------
@@ -90,7 +90,7 @@ const cueEngine = {
       [...this.fired].filter((key) => {
         const t = Number(key.split("@")[0]);
         return t <= newTime;
-      })
+      }),
     );
   },
 
@@ -148,7 +148,7 @@ function startHttpServer() {
     "/media360",
     express.static(VR_MEDIA_DIR, {
       acceptRanges: true,
-    })
+    }),
   );
 
   // convenience route
@@ -171,7 +171,7 @@ function startHttpServer() {
     console.log(`HTTPS server: https://localhost:${HTTPS_PORT}/vr`);
     console.log(`              https://${lanIp}:${HTTPS_PORT}/vr  (LAN IP)`);
     console.log(
-      `              https://mdrmx.local:${HTTPS_PORT}/vr  (LAN hostname)`
+      `              https://mdrmx.local:${HTTPS_PORT}/vr  (LAN hostname)`,
     );
   });
 }
@@ -183,7 +183,7 @@ function startCaServer() {
   const CA_PATH = path.join(
     process.env.LOCALAPPDATA || path.join(os.homedir(), ".local", "share"),
     "mkcert",
-    "rootCA.pem"
+    "rootCA.pem",
   );
 
   if (!fs.existsSync(CA_PATH)) {
@@ -198,7 +198,7 @@ function startCaServer() {
     res.setHeader("Content-Type", "application/x-pem-file");
     res.setHeader(
       "Content-Disposition",
-      'attachment; filename="mkcert-rootCA.pem"'
+      'attachment; filename="mkcert-rootCA.pem"',
     );
     res.sendFile(CA_PATH);
   });
@@ -302,7 +302,7 @@ ipcMain.handle("op:setCue", (_e, cue) => {
   }
   fs.writeFileSync(
     path.join(__dirname, "cues.json"),
-    JSON.stringify(cues, null, 2)
+    JSON.stringify(cues, null, 2),
   );
   cueEngine.onSeek(getPlayheadSeconds()); // re-arm so updated cues fire correctly
   console.log("[IPC] op:setCue", newCue);
@@ -316,7 +316,7 @@ ipcMain.handle("op:deleteCue", (_e, index) => {
   const removed = cues.splice(index, 1)[0];
   fs.writeFileSync(
     path.join(__dirname, "cues.json"),
-    JSON.stringify(cues, null, 2)
+    JSON.stringify(cues, null, 2),
   );
   cueEngine.onSeek(getPlayheadSeconds());
   console.log("[IPC] op:deleteCue", removed);
@@ -342,6 +342,10 @@ function createControlWindow() {
       nodeIntegration: false,
       preload: path.join(__dirname, "controls", "preload.js"),
     },
+  });
+
+  controlWin.webContents.on("console-message", (_e, level, message) => {
+    console.log(`[CTRL lvl${level}]`, message);
   });
 
   controlWin.loadFile(path.join(__dirname, "controls", "controls.html"));
@@ -381,7 +385,7 @@ function createWallWindows() {
       "[MAIN] wall preload path:",
       wallPreloadPath,
       "exists:",
-      fs.existsSync(wallPreloadPath)
+      fs.existsSync(wallPreloadPath),
     );
 
     const win = new BrowserWindow({
@@ -402,17 +406,12 @@ function createWallWindows() {
       },
     });
     win.webContents.on("console-message", (_e, level, message) => {
-      console.log(`[WALL console ${level}]`, message);
-    });
-
-    win.webContents.once("did-finish-load", () => {
-      win.webContents.openDevTools({ mode: "detach" });
+      console.log(`[WALL-${i} lvl${level}]`, message);
     });
 
     win.loadFile(path.join(__dirname, "renderer-wall", "wall.html"), {
       query: { screen: String(i) },
     });
-    win.webContents.openDevTools({ mode: "detach" });
     // controlWin.webContents.openDevTools({ mode: "detach" });
     wallWindows.push(win);
   });
@@ -420,13 +419,16 @@ function createWallWindows() {
 
 // -------------------- App lifecycle --------------------
 function startMasterTick() {
-  setInterval(() => {
-    const t = getPlayheadSeconds();
-    cueEngine.tick(t);
+  setInterval(
+    () => {
+      const t = getPlayheadSeconds();
+      cueEngine.tick(t);
 
-    // Push state periodically so windows can correct drift, even if no commands happen
-    broadcastState();
-  }, Math.round(1000 / TICK_HZ));
+      // Push state periodically so windows can correct drift, even if no commands happen
+      broadcastState();
+    },
+    Math.round(1000 / TICK_HZ),
+  );
 }
 
 app.whenReady().then(() => {
