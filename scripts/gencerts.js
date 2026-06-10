@@ -17,6 +17,7 @@ function getLanIp() {
 }
 
 const certsDir = path.join(__dirname, "..", "certs");
+require("fs").mkdirSync(certsDir, { recursive: true });
 const hostname = os.hostname();
 const lanIp = getLanIp();
 
