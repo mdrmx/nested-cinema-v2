@@ -50,13 +50,13 @@ You're now inside the project. Continue with the **Setup** steps below.
 
 ## Prerequisites
 
-| Tool                                            | Install                    |
-| ----------------------------------------------- | -------------------------- |
-| [Node.js](https://nodejs.org) ≥ 18              | `brew install node`        |
-| [mkcert](https://github.com/FiloSottile/mkcert) | `brew install mkcert`      |
-| [Max/MSP](https://cycling74.com) _(optional)_   | for surround-sound control |
+| Tool                                            | macOS                      | Windows                                                       |
+| ----------------------------------------------- | -------------------------- | ------------------------------------------------------------- |
+| [Node.js](https://nodejs.org) ≥ 18              | `brew install node`        | Download installer from [nodejs.org](https://nodejs.org)      |
+| [mkcert](https://github.com/FiloSottile/mkcert) | `brew install mkcert`      | `winget install FiloSottile.mkcert` or `choco install mkcert` |
+| [Max/MSP](https://cycling74.com) _(optional)_   | for surround-sound control | for surround-sound control                                    |
 
-> **Windows / Linux:** replace `brew install` with your platform's package manager. See the mkcert README for details.
+> **Windows note:** `winget` is built into Windows 10/11. If you prefer [Chocolatey](https://chocolatey.org), install it first then use the `choco` command above. After installing mkcert, run the commands in **PowerShell** or **Git Bash**.
 
 ## Setup
 
