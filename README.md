@@ -16,6 +16,38 @@ Mobile VR client (mobile/vr.html) — connect from headset browser
 Max/MSP patch (max-surround-control/) — connects as a WebSocket client
 ```
 
+## Getting the project
+
+If you're new to Git, follow these steps to download the project to your computer.
+
+### 1. Install Git
+
+Check whether Git is already installed by opening a terminal and running:
+
+```bash
+git --version
+```
+
+If you see a version number, you're good to go. If not, download and install it from [git-scm.com](https://git-scm.com/downloads).
+
+### 2. Clone the repository
+
+```bash
+git clone https://github.com/mdrmx/nested-cinema-v2.git
+```
+
+Replace the URL with the actual repository URL (ask the project owner if you're unsure).
+
+### 3. Enter the project folder
+
+```bash
+cd nested-cinema-v2
+```
+
+You're now inside the project. Continue with the **Setup** steps below.
+
+---
+
 ## Prerequisites
 
 | Tool                                            | Install                    |
