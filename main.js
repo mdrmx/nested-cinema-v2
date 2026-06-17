@@ -180,11 +180,23 @@ function startHttpServer() {
 // Phones can't reach the HTTPS server before trusting the CA (chicken-and-egg),
 // so we serve the CA file over plain HTTP on a separate port.
 function startCaServer() {
-  const CA_PATH = path.join(
-    process.env.LOCALAPPDATA || path.join(os.homedir(), ".local", "share"),
-    "mkcert",
-    "rootCA.pem",
-  );
+  let caRoot;
+  if (process.platform === "darwin") {
+    caRoot = path.join(
+      os.homedir(),
+      "Library",
+      "Application Support",
+      "mkcert",
+    );
+  } else if (process.platform === "win32") {
+    caRoot = path.join(
+      process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local"),
+      "mkcert",
+    );
+  } else {
+    caRoot = path.join(os.homedir(), ".local", "share", "mkcert");
+  }
+  const CA_PATH = path.join(caRoot, "rootCA.pem");
 
   if (!fs.existsSync(CA_PATH)) {
     console.warn("[CA] rootCA.pem not found — run: mkcert -install");
