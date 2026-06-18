@@ -1,0 +1,179 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,maximum-scale=1"
+    />
+    <title>Remote Control</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+      }
+      body {
+        margin: 0;
+        padding: 24px 20px;
+        background: #111;
+        color: #fff;
+        font-family: system-ui, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 28px;
+        min-height: 100dvh;
+      }
+      h1 {
+        margin: 0;
+        font-size: 1.2rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        opacity: 0.7;
+      }
+      #status {
+        font-size: 0.85rem;
+        padding: 6px 14px;
+        border-radius: 20px;
+        background: #222;
+        color: #aaa;
+      }
+      #status.connected {
+        background: #1a3a1a;
+        color: #4caf50;
+      }
+      #time {
+        font-size: 3rem;
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      #seekbar {
+        width: 100%;
+        max-width: 480px;
+        accent-color: #007bff;
+        height: 6px;
+        cursor: pointer;
+      }
+      .buttons {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      button {
+        padding: 18px 32px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        border: none;
+        border-radius: 14px;
+        cursor: pointer;
+        min-width: 100px;
+      }
+      #playBtn {
+        background: #28a745;
+        color: #fff;
+      }
+      #pauseBtn {
+        background: #ffc107;
+        color: #111;
+      }
+      #stopBtn {
+        background: #dc3545;
+        color: #fff;
+      }
+      button:active {
+        opacity: 0.75;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Nested Cinema — Remote</h1>
+    <div id="status">Connecting…</div>
+    <div id="time">0.00</div>
+    <input id="seekbar" type="range" min="0" max="600" step="0.5" value="0" />
+    <div class="buttons">
+      <button id="playBtn">▶ Play</button>
+      <button id="pauseBtn">⏸ Pause</button>
+      <button id="stopBtn">⏹ Stop</button>
+    </div>
+
+    <script>
+      const statusEl = document.getElementById("status");
+      const timeEl = document.getElementById("time");
+      const seekbar = document.getElementById("seekbar");
+      const playBtn = document.getElementById("playBtn");
+      const pauseBtn = document.getElementById("pauseBtn");
+      const stopBtn = document.getElementById("stopBtn");
+
+      let ws;
+      let lastState = null;
+      let stateReceivedAt = 0;
+
+      function send(msg) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(msg));
+        }
+      }
+
+      playBtn.onclick = () => send({ type: "play" });
+      pauseBtn.onclick = () => send({ type: "pause" });
+      stopBtn.onclick = () => {
+        send({ type: "seek", time: 0 });
+        send({ type: "pause" });
+      };
+
+      seekbar.addEventListener("change", () => {
+        send({ type: "seek", time: Number(seekbar.value) });
+      });
+
+      function getPlayhead(state) {
+        if (!state.playing) return state.offset;
+        const dt = (performance.now() - stateReceivedAt) / 1000;
+        return state.offset + dt * (state.rate || 1.0);
+      }
+
+      // Update the time display at ~10 Hz from the last known state
+      setInterval(() => {
+        if (!lastState) return;
+        const t = getPlayhead(lastState);
+        timeEl.textContent = t.toFixed(2);
+        if (!seekbar.matches(":active")) seekbar.value = String(t);
+      }, 100);
+
+      function connect() {
+        ws = new WebSocket(`wss://${location.host}`);
+
+        ws.onopen = () => {
+          statusEl.textContent = "Connected";
+          statusEl.classList.add("connected");
+        };
+
+        ws.onclose = () => {
+          statusEl.textContent = "Disconnected — reconnecting…";
+          statusEl.classList.remove("connected");
+          setTimeout(connect, 1000);
+        };
+
+        ws.onmessage = (evt) => {
+          let msg;
+          try {
+            msg = JSON.parse(evt.data);
+          } catch {
+            return;
+          }
+          if (msg.type === "state") {
+            lastState = msg;
+            stateReceivedAt = performance.now();
+            if (msg.offset !== undefined && !seekbar.matches(":active")) {
+              seekbar.value = String(getPlayhead(msg));
+            }
+          }
+        };
+      }
+
+      connect();
+    </script>
+  </body>
+</html>

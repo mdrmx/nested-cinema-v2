@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self' https://localhost:5173; media-src 'self' https://localhost:5173; script-src 'self'; style-src 'self' 'unsafe-inline';"
+      content="default-src 'self' https://localhost:5173; media-src 'self' https://localhost:5173; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://localhost:5173;"
     />
     <title>Wall Screen</title>
     <style>
@@ -26,9 +26,58 @@
       h1 {
         color: aliceblue;
       }
+      #qr-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.82);
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        gap: 24px;
+        z-index: 10;
+      }
+      #qr-overlay.visible {
+        display: flex;
+      }
+      #qr-overlay img {
+        width: 320px;
+        height: 320px;
+        border-radius: 12px;
+      }
+      #qr-overlay p {
+        color: #fff;
+        font-family: system-ui, sans-serif;
+        font-size: 1.1rem;
+        letter-spacing: 0.03em;
+        margin: 0;
+        opacity: 0.85;
+      }
+      #qr-title {
+        color: #fff;
+        font-family: system-ui, sans-serif;
+        font-size: 3rem;
+        font-weight: 800;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        margin: 0;
+        opacity: 1;
+      }
+      #qr-prompt {
+        font-size: 1.6rem;
+        font-weight: 600;
+        opacity: 1;
+        letter-spacing: 0.06em;
+      }
     </style>
   </head>
   <body>
+    <div id="qr-overlay">
+      <h1 id="qr-title">NESTED CINEMA</h1>
+      <p id="qr-prompt">Scan to join VR experience</p>
+      <img id="qr-img" src="" alt="QR code" />
+      <p id="qr-url"></p>
+    </div>
     <video id="vid"></video>
     <script src="./wall.js"></script>
   </body>

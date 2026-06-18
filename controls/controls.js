@@ -70,14 +70,11 @@ window.op.onTick(({ playhead, playing, duration }) => {
 });
 
 // -------------------- Screen video assignment --------------------
-const WALL_VIDEOS = [
-  "screen0.mp4",
-  "screen1.mp4",
-  "screen2.mp4",
-  "screen3.mp4",
-];
 const NUM_SCREENS = 3; // matches createWallWindows slice(0, 3)
 const assignContainer = document.getElementById("screenAssign");
+
+// selects[i] holds the <select> for screen i so refreshWallVideos can repopulate them
+const screenSelects = [];
 
 for (let i = 0; i < NUM_SCREENS; i++) {
   const row = document.createElement("div");
@@ -89,13 +86,7 @@ for (let i = 0; i < NUM_SCREENS; i++) {
 
   const select = document.createElement("select");
   select.id = `screenSel${i}`;
-  WALL_VIDEOS.forEach((f) => {
-    const opt = document.createElement("option");
-    opt.value = f;
-    opt.textContent = f;
-    if (f === `screen${i}.mp4`) opt.selected = true;
-    select.appendChild(opt);
-  });
+  screenSelects.push(select);
 
   const btn = document.createElement("button");
   btn.textContent = "Assign";
@@ -115,6 +106,38 @@ for (let i = 0; i < NUM_SCREENS; i++) {
   row.appendChild(btn);
   assignContainer.appendChild(row);
 }
+
+// Fetches the current file list from main and repopulates all screen selects.
+async function refreshWallVideos() {
+  let files;
+  try {
+    files = await window.op.listWallVideos();
+  } catch (e) {
+    console.error("listWallVideos failed", e);
+    return;
+  }
+  screenSelects.forEach((select, i) => {
+    const prev = select.value;
+    select.innerHTML = "";
+    if (files.length === 0) {
+      const opt = document.createElement("option");
+      opt.textContent = "(no videos found)";
+      opt.disabled = true;
+      select.appendChild(opt);
+      return;
+    }
+    files.forEach((f, fi) => {
+      const opt = document.createElement("option");
+      opt.value = f;
+      opt.textContent = f;
+      // Re-select previous value if still present, otherwise default to screen-index position
+      if (f === prev || (!prev && fi === i)) opt.selected = true;
+      select.appendChild(opt);
+    });
+  });
+}
+
+refreshWallVideos();
 
 // -------------------- VR Cue editor --------------------
 const cueListBody = document.getElementById("cueListBody");

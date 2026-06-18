@@ -7,6 +7,7 @@ const os = require("os");
 
 const express = require("express");
 const WebSocket = require("ws");
+const QRCode = require("qrcode");
 
 // -------------------- Config --------------------
 const HTTPS_PORT = 5173; // HTTPS + WSS on the same port
@@ -156,6 +157,11 @@ function startHttpServer() {
     res.sendFile(path.join(__dirname, "mobile", "vr.html"));
   });
 
+  // mobile operator remote
+  ex.get("/remote", (req, res) => {
+    res.sendFile(path.join(__dirname, "mobile", "remote.html"));
+  });
+
   // expose a simple status page
   ex.get("/status", (req, res) => {
     res.json({
@@ -168,10 +174,15 @@ function startHttpServer() {
   httpsServer = https.createServer({ cert: TLS_CERT, key: TLS_KEY }, ex);
   httpsServer.listen(HTTPS_PORT, () => {
     const lanIp = getLanIp();
+    const hostname = os.hostname();
     console.log(`HTTPS server: https://localhost:${HTTPS_PORT}/vr`);
     console.log(`              https://${lanIp}:${HTTPS_PORT}/vr  (LAN IP)`);
     console.log(
-      `              https://mdrmx.local:${HTTPS_PORT}/vr  (LAN hostname)`,
+      `              https://${hostname}:${HTTPS_PORT}/vr  (LAN hostname)`,
+    );
+    console.log(`Remote ctrl:  https://${lanIp}:${HTTPS_PORT}/remote`);
+    console.log(
+      `              https://${hostname}:${HTTPS_PORT}/remote  (LAN hostname)`,
     );
   });
 }
@@ -260,6 +271,8 @@ function wsBroadcast(obj) {
 // -------------------- IPC handlers for controls window (via preload) --------------------
 let controlWin;
 let wallDuration = 600;
+let qrDataUrl = null; // generated once server is up; sent to each wall window on load
+let qrPayload = null;
 
 ipcMain.handle("op:play", () => {
   console.log("[IPC] op:play");
@@ -290,6 +303,18 @@ ipcMain.handle("op:setDuration", (_e, d) => {
   console.log("[IPC] op:setDuration", d);
   wallDuration = d;
   return { ok: true };
+});
+
+// Returns the sorted list of video filenames present in the wall media directory
+ipcMain.handle("op:listWallVideos", () => {
+  try {
+    return fs
+      .readdirSync(WALL_MEDIA_DIR)
+      .filter((f) => /\.(mp4|mov|webm|mkv)$/i.test(f))
+      .sort();
+  } catch {
+    return [];
+  }
 });
 
 // Returns the current cues array
@@ -347,8 +372,10 @@ ipcMain.handle("op:setVideo", (_e, { screenIndex, videoFile }) => {
 
 function createControlWindow() {
   controlWin = new BrowserWindow({
-    width: 760,
-    height: 420,
+    width: 900,
+    height: 780,
+    minWidth: 900,
+    minHeight: 780,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -424,6 +451,24 @@ function createWallWindows() {
     win.loadFile(path.join(__dirname, "renderer-wall", "wall.html"), {
       query: { screen: String(i) },
     });
+    win.webContents.once("did-finish-load", () => {
+      if (qrPayload) win.webContents.send("wall:qrCode", qrPayload);
+      // Send the first available video file so the wall can preload without
+      // requiring a manual assignment from the operator
+      const videos = (() => {
+        try {
+          return fs
+            .readdirSync(WALL_MEDIA_DIR)
+            .filter((f) => /\.(mp4|mov|webm|mkv)$/i.test(f))
+            .sort();
+        } catch {
+          return [];
+        }
+      })();
+      const defaultFile = videos[i] ?? videos[0];
+      if (defaultFile)
+        win.webContents.send("wall:setInitialVideo", defaultFile);
+    });
     // controlWin.webContents.openDevTools({ mode: "detach" });
     wallWindows.push(win);
   });
@@ -443,11 +488,20 @@ function startMasterTick() {
   );
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   startHttpServer();
   startCaServer();
   startWsServer();
   createControlWindow();
+
+  // Generate QR before wall windows load so it is ready to send on did-finish-load
+  const vrUrl = `https://${getLanIp()}:${HTTPS_PORT}/vr`;
+  qrDataUrl = await QRCode.toDataURL(vrUrl, {
+    width: 400,
+    margin: 2,
+    color: { dark: "#000000", light: "#ffffff" },
+  });
+  qrPayload = { dataUrl: qrDataUrl, url: vrUrl };
 
   createWallWindows();
 

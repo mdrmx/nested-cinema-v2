@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("op", {
   setVideo: (screenIndex, videoFile) =>
     ipcRenderer.invoke("op:setVideo", { screenIndex, videoFile }),
   onTick: (cb) => ipcRenderer.on("op:tick", (_e, payload) => cb(payload)),
+  listWallVideos: () => ipcRenderer.invoke("op:listWallVideos"),
   getCues: () => ipcRenderer.invoke("op:getCues"),
   setCue: (cue) => ipcRenderer.invoke("op:setCue", cue),
   deleteCue: (index) => ipcRenderer.invoke("op:deleteCue", index),

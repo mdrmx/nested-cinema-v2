@@ -9,14 +9,30 @@ const screenIndex = Number(params.get("screen") || 0);
 const video = document.getElementById("vid");
 if (!video) throw new Error("No #vid element");
 
+// QR overlay elements
+const qrOverlay = document.getElementById("qr-overlay");
+const qrImg = document.getElementById("qr-img");
+const qrUrlEl = document.getElementById("qr-url");
+
+function setQrVisible(visible) {
+  qrOverlay.classList.toggle("visible", visible);
+}
+
 // Load the per-screen video asset served by the local Vite dev server
-video.src = `https://localhost:5173/wallmedia/screen${screenIndex}.mp4`;
 video.preload = "auto";
 video.playsInline = true;
 video.autoplay = false;
 video.loop = false;
 video.muted = true; // must be muted for autoplay policy compliance
 video.controls = false;
+
+// Main sends the first available file once the directory is scanned at startup.
+// This replaces the old hardcoded screen${screenIndex}.mp4 default.
+window.timeline.onSetInitialVideo((file) => {
+  video.src = `https://localhost:5173/wallmedia/${file}`;
+  video.load();
+  console.log(`[WALL ${screenIndex}] initial video: ${file}`);
+});
 
 // Allow operator to hot-swap the video file without restarting the window.
 // Preserves the current playhead position and resumes playback if it was running.
@@ -41,9 +57,6 @@ const SOFT_NUDGE = 0.04; // seconds — soft rate-nudge threshold
 let lastState = null;
 let stateReceivedAt = 0;
 
-// Guard to prevent overlapping video.play() calls, which cause AbortError cascades.
-let playPending = false;
-
 // Extrapolates the expected video position from the last known state.
 // If paused, returns the fixed offset; if playing, advances by elapsed wall-clock time.
 function targetFromState(state) {
@@ -65,22 +78,18 @@ async function applyState(state) {
     if (!video.paused) video.pause();
     if (Math.abs(video.currentTime - target) > 0.02) video.currentTime = target;
     video.playbackRate = 1.0;
+    setQrVisible(true);
     return;
   }
 
-  // Ensure the video is playing before measuring drift.
-  // Skip if a play() call is already in-flight (AbortError guard) or if the
-  // video hasn't buffered enough data yet (NotSupportedError / AbortError guard).
-  if (video.paused && !playPending) {
-    if (video.readyState < 2 /* HAVE_CURRENT_DATA */) return;
-    playPending = true;
+  setQrVisible(false);
+
+  // Ensure the video is playing before measuring drift
+  if (video.paused) {
     try {
       await video.play();
     } catch (e) {
       console.error("video.play failed", e);
-      return; // skip drift correction — video isn't playing
-    } finally {
-      playPending = false;
     }
   }
 
@@ -103,13 +112,19 @@ async function applyState(state) {
 
 // Diagnostic event listeners for monitoring playback health
 video.addEventListener("error", () =>
-  console.error("VIDEO ERROR", video.error, video.currentSrc)
+  console.error("VIDEO ERROR", video.error, video.currentSrc),
 );
 video.addEventListener("playing", () => console.log("VIDEO playing"));
 video.addEventListener("pause", () => console.log("VIDEO paused"));
 video.addEventListener("loadedmetadata", () =>
-  console.log("metadata duration", video.duration)
+  console.log("metadata duration", video.duration),
 );
+
+// Receive the QR code data URL from main and populate the overlay
+window.timeline.onQrCode(({ dataUrl, url }) => {
+  qrImg.src = dataUrl;
+  qrUrlEl.textContent = url;
+});
 
 // Receive timeline state updates pushed from the main process via
 // the IPC bridge exposed in renderer-wall/preload.js as window.timeline.onState
