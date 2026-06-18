@@ -503,6 +503,16 @@ app.whenReady().then(async () => {
   });
   qrPayload = { dataUrl: qrDataUrl, url: vrUrl };
 
+  // Print a scannable QR code for the remote control URL directly in the terminal
+  const remoteUrl = `https://${getLanIp()}:${HTTPS_PORT}/remote`;
+  const remoteQr = await QRCode.toString(remoteUrl, {
+    type: "terminal",
+    small: true,
+  });
+  console.log("\nRemote control QR code:");
+  console.log(remoteQr);
+  console.log(`URL: ${remoteUrl}\n`);
+
   createWallWindows();
 
   startMasterTick();
