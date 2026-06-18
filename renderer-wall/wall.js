@@ -23,15 +23,20 @@ video.preload = "auto";
 video.playsInline = true;
 video.autoplay = false;
 video.loop = false;
-video.muted = true; // must be muted for autoplay policy compliance
+// Screen 0 is the primary audio screen — unmuted by default; all others muted
+video.muted = screenIndex !== 0;
 video.controls = false;
+
+// Operator can toggle mute per screen from the controls window
+window.timeline.onSetMuted((muted) => {
+  video.muted = muted;
+});
 
 // Main sends the first available file once the directory is scanned at startup.
 // This replaces the old hardcoded screen${screenIndex}.mp4 default.
 window.timeline.onSetInitialVideo((file) => {
   video.src = `https://localhost:5173/wallmedia/${file}`;
   video.load();
-  console.log(`[WALL ${screenIndex}] initial video: ${file}`);
 });
 
 // Allow operator to hot-swap the video file without restarting the window.
@@ -43,7 +48,6 @@ window.timeline.onSetVideo(({ videoFile }) => {
   video.load();
   video.currentTime = t;
   if (wasPlaying) video.play().catch(() => {});
-  console.log(`[WALL ${screenIndex}] video swapped to ${videoFile}`);
 });
 
 // Drift thresholds for sync correction.
@@ -113,11 +117,6 @@ async function applyState(state) {
 // Diagnostic event listeners for monitoring playback health
 video.addEventListener("error", () =>
   console.error("VIDEO ERROR", video.error, video.currentSrc),
-);
-video.addEventListener("playing", () => console.log("VIDEO playing"));
-video.addEventListener("pause", () => console.log("VIDEO paused"));
-video.addEventListener("loadedmetadata", () =>
-  console.log("metadata duration", video.duration),
 );
 
 // Receive the QR code data URL from main and populate the overlay

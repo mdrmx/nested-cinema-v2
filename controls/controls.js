@@ -101,9 +101,26 @@ for (let i = 0; i < NUM_SCREENS; i++) {
     }
   };
 
+  // Mute toggle — screen 0 is unmuted by default (primary audio screen)
+  let muted = i !== 0;
+  const muteBtn = document.createElement("button");
+  muteBtn.textContent = muted ? "🔇 Unmute" : "🔊 Mute";
+  muteBtn.style.background = muted ? "#6c757d" : "#17a2b8";
+  muteBtn.onclick = async () => {
+    muted = !muted;
+    try {
+      await window.op.setMuted(i, muted);
+      muteBtn.textContent = muted ? "🔇 Unmute" : "🔊 Mute";
+      muteBtn.style.background = muted ? "#6c757d" : "#17a2b8";
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   row.appendChild(label);
   row.appendChild(select);
   row.appendChild(btn);
+  row.appendChild(muteBtn);
   assignContainer.appendChild(row);
 }
 

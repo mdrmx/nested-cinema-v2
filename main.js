@@ -275,32 +275,27 @@ let qrDataUrl = null; // generated once server is up; sent to each wall window o
 let qrPayload = null;
 
 ipcMain.handle("op:play", () => {
-  console.log("[IPC] op:play");
   play();
   return { ok: true };
 });
 
 ipcMain.handle("op:pause", () => {
-  console.log("[IPC] op:pause");
   pause();
   return { ok: true };
 });
 
 ipcMain.handle("op:stop", () => {
-  console.log("[IPC] op:stop");
   pause();
   seek(0);
   return { ok: true };
 });
 
 ipcMain.handle("op:seek", (_e, t) => {
-  console.log("[IPC] op:seek", t);
   seek(t);
   return { ok: true };
 });
 
 ipcMain.handle("op:setDuration", (_e, d) => {
-  console.log("[IPC] op:setDuration", d);
   wallDuration = d;
   return { ok: true };
 });
@@ -342,7 +337,6 @@ ipcMain.handle("op:setCue", (_e, cue) => {
     JSON.stringify(cues, null, 2),
   );
   cueEngine.onSeek(getPlayheadSeconds()); // re-arm so updated cues fire correctly
-  console.log("[IPC] op:setCue", newCue);
   return { ok: true, cues };
 });
 
@@ -356,8 +350,15 @@ ipcMain.handle("op:deleteCue", (_e, index) => {
     JSON.stringify(cues, null, 2),
   );
   cueEngine.onSeek(getPlayheadSeconds());
-  console.log("[IPC] op:deleteCue", removed);
   return { ok: true, cues };
+});
+
+ipcMain.handle("op:setMuted", (_e, { screenIndex, muted }) => {
+  const win = wallWindows[screenIndex];
+  if (!win || win.isDestroyed())
+    return { ok: false, error: "window not found" };
+  win.webContents.send("wall:setMuted", muted);
+  return { ok: true };
 });
 
 // screenIndex: 0-based wall window index; videoFile: filename under /wallmedia/ e.g. "screen1.mp4"
@@ -366,7 +367,6 @@ ipcMain.handle("op:setVideo", (_e, { screenIndex, videoFile }) => {
   if (!win || win.isDestroyed())
     return { ok: false, error: "window not found" };
   win.webContents.send("wall:setVideo", { videoFile });
-  console.log(`[IPC] op:setVideo screen=${screenIndex} file=${videoFile}`);
   return { ok: true };
 });
 
@@ -384,7 +384,7 @@ function createControlWindow() {
   });
 
   controlWin.webContents.on("console-message", (_e, level, message) => {
-    console.log(`[CTRL lvl${level}]`, message);
+    if (level >= 3) console.error(`[CTRL]`, message);
   });
 
   controlWin.loadFile(path.join(__dirname, "controls", "controls.html"));
@@ -420,12 +420,6 @@ function createWallWindows() {
 
   selected.forEach((d, i) => {
     const wallPreloadPath = path.join(__dirname, "renderer-wall", "preload.js");
-    console.log(
-      "[MAIN] wall preload path:",
-      wallPreloadPath,
-      "exists:",
-      fs.existsSync(wallPreloadPath),
-    );
 
     const win = new BrowserWindow({
       x: d.bounds.x,
@@ -445,7 +439,7 @@ function createWallWindows() {
       },
     });
     win.webContents.on("console-message", (_e, level, message) => {
-      console.log(`[WALL-${i} lvl${level}]`, message);
+      if (level >= 3) console.error(`[WALL-${i}]`, message);
     });
 
     win.loadFile(path.join(__dirname, "renderer-wall", "wall.html"), {

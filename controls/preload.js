@@ -1,7 +1,5 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
-console.log("controls preload loaded ✅");
-
 contextBridge.exposeInMainWorld("op", {
   play: () => ipcRenderer.invoke("op:play"),
   pause: () => ipcRenderer.invoke("op:pause"),
@@ -10,6 +8,8 @@ contextBridge.exposeInMainWorld("op", {
   setDuration: (d) => ipcRenderer.invoke("op:setDuration", d),
   setVideo: (screenIndex, videoFile) =>
     ipcRenderer.invoke("op:setVideo", { screenIndex, videoFile }),
+  setMuted: (screenIndex, muted) =>
+    ipcRenderer.invoke("op:setMuted", { screenIndex, muted }),
   onTick: (cb) => ipcRenderer.on("op:tick", (_e, payload) => cb(payload)),
   listWallVideos: () => ipcRenderer.invoke("op:listWallVideos"),
   getCues: () => ipcRenderer.invoke("op:getCues"),
