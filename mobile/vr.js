@@ -5,52 +5,124 @@ let ws;
 // Connect over WSS using the same host as the page (certificate must match)
 const wsUrl = `wss://${location.host}`;
 
+// Map of filename → <video> element, populated by initVideos()
+const vrVideos = new Map();
+
 // Updates the on-screen status message
 function setStatus(msg) {
   statusEl.textContent = msg;
 }
 
-// Pre-loads both VR video elements so playback can start without delay
-function prepareVideos() {
-  const v1 = document.querySelector("#vr1");
-  const v2 = document.querySelector("#vr2");
-  v1.load();
-  v2.load();
-  v1.addEventListener("canplaythrough", () => console.log("vr1 ready"));
-  v2.addEventListener("canplaythrough", () => console.log("vr2 ready"));
+// Fetches the VR video list from the server, creates <video> elements for each
+// file, injects them into <a-assets>, and begins preloading.
+async function initVideos() {
+  let files = [];
+  try {
+    const res = await fetch("/api/vr-videos");
+    const data = await res.json();
+    files = data.files || [];
+  } catch (e) {
+    console.warn("Could not fetch VR video list:", e);
+  }
+
+  const assets = document.querySelector("a-assets");
+  files.forEach((filename) => {
+    const video = document.createElement("video");
+    // Build a safe DOM id from the filename
+    video.id = `vr-${filename.replace(/[^a-z0-9]/gi, "-")}`;
+    video.setAttribute("preload", "auto");
+    video.muted = true;
+    video.setAttribute("playsinline", "");
+    video.setAttribute("webkit-playsinline", "");
+    video.setAttribute("crossorigin", "anonymous");
+
+    const source = document.createElement("source");
+    source.src = `/media360/${filename}`;
+    source.type = "video/mp4";
+    video.appendChild(source);
+
+    video.addEventListener("canplaythrough", () =>
+      console.log(`${filename} ready`),
+    );
+    assets.appendChild(video);
+    vrVideos.set(filename, video);
+    video.load();
+  });
+
+  console.log(`Loaded ${files.length} VR video(s):`, files);
+}
+
+// Returns the <video> element for a given filename, creating and loading it
+// on-demand if it was added to the server after the page loaded.
+function getOrCreateVideo(filename) {
+  if (vrVideos.has(filename)) return Promise.resolve(vrVideos.get(filename));
+
+  const assets = document.querySelector("a-assets");
+  const video = document.createElement("video");
+  video.id = `vr-${filename.replace(/[^a-z0-9]/gi, "-")}`;
+  video.setAttribute("preload", "auto");
+  video.muted = true;
+  video.setAttribute("playsinline", "");
+  video.setAttribute("webkit-playsinline", "");
+  video.setAttribute("crossorigin", "anonymous");
+
+  const source = document.createElement("source");
+  source.src = `/media360/${filename}`;
+  source.type = "video/mp4";
+  video.appendChild(source);
+
+  assets.appendChild(video);
+  vrVideos.set(filename, video);
+
+  return new Promise((resolve) => {
+    video.addEventListener("canplay", () => resolve(video), { once: true });
+    // Don't hang forever on a bad filename — resolve anyway and let play() fail
+    video.addEventListener("error", () => resolve(video), { once: true });
+    video.load();
+  });
 }
 
 // Plays the requested VR clip and binds it to the A-Frame sphere texture.
-// Defaults to vr1 if no clipId is provided.
-function handlePlayVideo(data = {}) {
+async function handlePlayVideo(data = {}) {
   const sphere = document.querySelector("#sphere");
-  const v1 = document.querySelector("#vr1");
-  const v2 = document.querySelector("#vr2");
-  let activeVideo;
+  const filename = data.clipId;
 
-  // Select the appropriate video asset and update the sphere's src
-  if (data.clipId === "vr2") {
-    activeVideo = v2;
-    sphere.setAttribute("src", "#vr2");
-  } else {
-    activeVideo = v1;
-    sphere.setAttribute("src", "#vr1");
+  const video = await getOrCreateVideo(filename);
+
+  // Pause all other videos before switching
+  for (const [, v] of vrVideos) {
+    if (v !== video) {
+      v.pause();
+      v.currentTime = 0;
+    }
   }
 
-  // Reset playhead and start playback
-  activeVideo.currentTime = 0;
-  activeVideo.play().catch((err) => console.warn("Play failed:", err));
-  setStatus(`Playing: ${data.clipId || "vr1"}`);
+  // Update the sphere texture directly via Three.js — more reliable than
+  // setAttribute when videos are injected dynamically after scene init.
+  const mesh = sphere.getObject3D("mesh");
+  if (mesh && mesh.material) {
+    if (mesh.material.map) mesh.material.map.dispose();
+    const texture = new THREE.VideoTexture(video);
+    texture.colorSpace = THREE.SRGBColorSpace; // match A-Frame's pipeline; prevents washed-out output
+    texture.minFilter = THREE.LinearFilter;
+    texture.generateMipmaps = false;
+    mesh.material.map = texture;
+    mesh.material.needsUpdate = true;
+  } else {
+    // Fallback: scene mesh not ready (very early load)
+    sphere.setAttribute("src", "#" + video.id);
+  }
+  video.currentTime = 0;
+  video.play().catch((err) => console.warn("Play failed:", err));
+  setStatus(`Playing: ${filename}`);
 }
 
-// Stops and resets both video elements
+// Stops and resets all video elements
 function handlePauseVideo() {
-  const v1 = document.querySelector("#vr1");
-  const v2 = document.querySelector("#vr2");
-  v1.currentTime = 0;
-  v2.currentTime = 0;
-  v1.pause();
-  v2.pause();
+  for (const [, video] of vrVideos) {
+    video.pause();
+    video.currentTime = 0;
+  }
   setStatus("Stopped");
 }
 
@@ -93,13 +165,13 @@ function connect() {
       );
     }
 
-    // stop360: halt playback and reset both videos
+    // stop360: halt playback and reset all videos
     if (msg.type === "stop360") handlePauseVideo();
   };
 }
 
-// Bootstrap: pre-load videos then open the WebSocket connection
+// Bootstrap: fetch video list then open the WebSocket connection
 document.addEventListener("DOMContentLoaded", () => {
-  prepareVideos();
+  initVideos();
   connect();
 });

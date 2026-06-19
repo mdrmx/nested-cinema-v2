@@ -152,6 +152,19 @@ function startHttpServer() {
     }),
   );
 
+  // Returns the sorted list of VR video filenames for browser clients (vr.html)
+  ex.get("/api/vr-videos", (_req, res) => {
+    try {
+      const files = fs
+        .readdirSync(VR_MEDIA_DIR)
+        .filter((f) => /\.(mp4|mov|webm|mkv)$/i.test(f))
+        .sort();
+      res.json({ files });
+    } catch {
+      res.json({ files: [] });
+    }
+  });
+
   // convenience route
   ex.get("/vr", (req, res) => {
     res.sendFile(path.join(__dirname, "mobile", "vr.html"));
@@ -312,6 +325,18 @@ ipcMain.handle("op:listWallVideos", () => {
   }
 });
 
+// Returns the sorted list of video filenames present in the VR media directory
+ipcMain.handle("op:listVrVideos", () => {
+  try {
+    return fs
+      .readdirSync(VR_MEDIA_DIR)
+      .filter((f) => /\.(mp4|mov|webm|mkv)$/i.test(f))
+      .sort();
+  } catch {
+    return [];
+  }
+});
+
 // Returns the current cues array
 ipcMain.handle("op:getCues", () => cues);
 
@@ -323,7 +348,7 @@ ipcMain.handle("op:setCue", (_e, cue) => {
   if (!Number.isFinite(time)) return { ok: false, error: "invalid time" };
   const type = cue.type === "stop360" ? "stop360" : "trigger360";
   const newCue = { time, type };
-  if (type === "trigger360") newCue.clipId = cue.clipId || "vr1";
+  if (type === "trigger360") newCue.clipId = String(cue.clipId || "");
 
   const idx = cues.findIndex((c) => c.time === time);
   if (idx >= 0) {

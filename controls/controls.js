@@ -161,14 +161,24 @@ const cueListBody = document.getElementById("cueListBody");
 const addCueBtn = document.getElementById("addCueBtn");
 
 const CUE_TYPES = ["trigger360", "stop360"];
-const CLIP_IDS = ["vr1", "vr2"];
+let vrClipIds = [];
+
+async function refreshVrVideos() {
+  try {
+    vrClipIds = await window.op.listVrVideos();
+  } catch (e) {
+    console.error("listVrVideos failed", e);
+    vrClipIds = [];
+  }
+}
 
 // Replaces a cue by index: deletes the old entry then inserts the updated values.
 async function updateCue(index, newValues) {
   const del = await window.op.deleteCue(index);
   if (!del.ok) return null;
   const cue = { time: newValues.time, type: newValues.type };
-  if (newValues.type === "trigger360") cue.clipId = newValues.clipId || "vr1";
+  if (newValues.type === "trigger360")
+    cue.clipId = String(newValues.clipId || "");
   const set = await window.op.setCue(cue);
   return set.ok ? set.cues : null;
 }
@@ -182,7 +192,7 @@ function renderCues(cues) {
     // Mirror current values on the row so sibling cells can read pending state
     tr.dataset.time = cue.time;
     tr.dataset.type = cue.type;
-    tr.dataset.clipId = cue.clipId || "vr1";
+    tr.dataset.clipId = cue.clipId || vrClipIds[0] || "";
 
     const getRowValues = () => ({
       time: Number(tr.dataset.time),
@@ -269,11 +279,11 @@ function renderCues(cues) {
       clipTd.addEventListener("click", () => {
         if (clipTd.querySelector("select")) return;
         const sel = document.createElement("select");
-        CLIP_IDS.forEach((id) => {
+        vrClipIds.forEach((id) => {
           const opt = document.createElement("option");
           opt.value = id;
           opt.textContent = id;
-          if (id === (tr.dataset.clipId || "vr1")) opt.selected = true;
+          if (id === tr.dataset.clipId) opt.selected = true;
           sel.appendChild(opt);
         });
         clipTd.textContent = "";
@@ -288,7 +298,8 @@ function renderCues(cues) {
           if (updated) renderCues(updated);
         });
         sel.addEventListener("blur", () => {
-          if (!committed) clipTd.textContent = tr.dataset.clipId || "vr1";
+          if (!committed)
+            clipTd.textContent = tr.dataset.clipId || vrClipIds[0] || "";
         });
       });
     }
@@ -316,10 +327,10 @@ addCueBtn.addEventListener("click", async () => {
   const result = await window.op.setCue({
     time: 0,
     type: "trigger360",
-    clipId: "vr1",
+    clipId: vrClipIds[0] || "",
   });
   if (result.ok) renderCues(result.cues);
 });
 
-// Load and display cues on startup
-window.op.getCues().then(renderCues);
+// Load VR video list then display cues on startup
+refreshVrVideos().then(() => window.op.getCues().then(renderCues));
