@@ -1,17 +1,17 @@
 [
   {
+    "time": 0,
+    "type": "trigger360",
+    "clipId": "vr1.mp4"
+  },
+  {
     "time": 5,
     "type": "trigger360",
-    "clipId": "vr3.mp4"
+    "clipId": "vr3tester.mp4"
   },
   {
     "time": 10,
     "type": "trigger360",
     "clipId": "vr2.mp4"
-  },
-  {
-    "time": 15,
-    "type": "trigger360",
-    "clipId": "vr3.mp4"
   }
 ]

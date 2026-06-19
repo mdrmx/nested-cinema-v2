@@ -70,58 +70,62 @@ window.op.onTick(({ playhead, playing, duration }) => {
 });
 
 // -------------------- Screen video assignment --------------------
-const NUM_SCREENS = 3; // matches createWallWindows slice(0, 3)
 const assignContainer = document.getElementById("screenAssign");
 
 // selects[i] holds the <select> for screen i so refreshWallVideos can repopulate them
 const screenSelects = [];
 
-for (let i = 0; i < NUM_SCREENS; i++) {
-  const row = document.createElement("div");
-  row.className = "row";
+function buildScreenRows(numScreens) {
+  assignContainer.innerHTML = "";
+  screenSelects.length = 0;
 
-  const label = document.createElement("label");
-  label.textContent = `Screen ${i}:`;
-  label.style.minWidth = "70px";
+  for (let i = 0; i < numScreens; i++) {
+    const row = document.createElement("div");
+    row.className = "row";
 
-  const select = document.createElement("select");
-  select.id = `screenSel${i}`;
-  screenSelects.push(select);
+    const label = document.createElement("label");
+    label.textContent = `Screen ${i}:`;
+    label.style.minWidth = "70px";
 
-  const btn = document.createElement("button");
-  btn.textContent = "Assign";
-  btn.onclick = async () => {
-    const videoFile = select.value;
-    try {
-      await window.op.setVideo(i, videoFile);
-      btn.textContent = "✓ Assigned";
-      setTimeout(() => (btn.textContent = "Assign"), 1500);
-    } catch (e) {
-      console.error(e);
-    }
-  };
+    const select = document.createElement("select");
+    select.id = `screenSel${i}`;
+    screenSelects.push(select);
 
-  // Mute toggle — screen 0 is unmuted by default (primary audio screen)
-  let muted = i !== 0;
-  const muteBtn = document.createElement("button");
-  muteBtn.textContent = muted ? "🔇 Unmute" : "🔊 Mute";
-  muteBtn.style.background = muted ? "#6c757d" : "#17a2b8";
-  muteBtn.onclick = async () => {
-    muted = !muted;
-    try {
-      await window.op.setMuted(i, muted);
-      muteBtn.textContent = muted ? "🔇 Unmute" : "🔊 Mute";
-      muteBtn.style.background = muted ? "#6c757d" : "#17a2b8";
-    } catch (e) {
-      console.error(e);
-    }
-  };
+    const btn = document.createElement("button");
+    btn.textContent = "Assign";
+    btn.onclick = async () => {
+      const videoFile = select.value;
+      try {
+        await window.op.setVideo(i, videoFile);
+        btn.textContent = "✓ Assigned";
+        setTimeout(() => (btn.textContent = "Assign"), 1500);
+      } catch (e) {
+        console.error(e);
+      }
+    };
 
-  row.appendChild(label);
-  row.appendChild(select);
-  row.appendChild(btn);
-  row.appendChild(muteBtn);
-  assignContainer.appendChild(row);
+    // Mute toggle — screen 0 is unmuted by default (primary audio screen)
+    let muted = i !== 0;
+    const muteBtn = document.createElement("button");
+    muteBtn.textContent = muted ? "🔇 Unmute" : "🔊 Mute";
+    muteBtn.style.background = muted ? "#6c757d" : "#17a2b8";
+    muteBtn.onclick = async () => {
+      muted = !muted;
+      try {
+        await window.op.setMuted(i, muted);
+        muteBtn.textContent = muted ? "🔇 Unmute" : "🔊 Mute";
+        muteBtn.style.background = muted ? "#6c757d" : "#17a2b8";
+      } catch (e) {
+        console.error(e);
+      }
+    };
+
+    row.appendChild(label);
+    row.appendChild(select);
+    row.appendChild(btn);
+    row.appendChild(muteBtn);
+    assignContainer.appendChild(row);
+  }
 }
 
 // Fetches the current file list from main and repopulates all screen selects.
@@ -154,7 +158,16 @@ async function refreshWallVideos() {
   });
 }
 
-refreshWallVideos();
+(async () => {
+  try {
+    const count = await window.op.getScreenCount();
+    buildScreenRows(count);
+  } catch (e) {
+    console.error("getScreenCount failed, falling back to 1", e);
+    buildScreenRows(1);
+  }
+  await refreshWallVideos();
+})();
 
 // -------------------- VR Cue editor --------------------
 const cueListBody = document.getElementById("cueListBody");

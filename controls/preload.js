@@ -16,4 +16,5 @@ contextBridge.exposeInMainWorld("op", {
   getCues: () => ipcRenderer.invoke("op:getCues"),
   setCue: (cue) => ipcRenderer.invoke("op:setCue", cue),
   deleteCue: (index) => ipcRenderer.invoke("op:deleteCue", index),
+  getScreenCount: () => ipcRenderer.invoke("op:getScreenCount"),
 });

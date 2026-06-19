@@ -387,6 +387,10 @@ ipcMain.handle("op:setMuted", (_e, { screenIndex, muted }) => {
 });
 
 // screenIndex: 0-based wall window index; videoFile: filename under /wallmedia/ e.g. "screen1.mp4"
+// Returns the number of active wall windows so the controls UI can build
+// the correct number of screen assignment rows dynamically.
+ipcMain.handle("op:getScreenCount", () => wallWindows.length);
+
 ipcMain.handle("op:setVideo", (_e, { screenIndex, videoFile }) => {
   const win = wallWindows[screenIndex];
   if (!win || win.isDestroyed())
@@ -440,8 +444,8 @@ function broadcastState() {
 function createWallWindows() {
   const displays = screen.getAllDisplays();
 
-  // Use first 3 displays; adjust if you want a mapping UI later
-  const selected = displays.slice(0, 3);
+  // Use all connected displays
+  const selected = displays;
 
   selected.forEach((d, i) => {
     const wallPreloadPath = path.join(__dirname, "renderer-wall", "preload.js");
