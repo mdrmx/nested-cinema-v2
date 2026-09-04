@@ -8,6 +8,7 @@ An Electron-based multi-screen cinema controller that synchronises a wall video 
 Electron host (main.js)
 ├── Operator window  — playback controls (controls/)
 ├── Wall renderer    — full-screen video display (renderer-wall/)
+├── Projection output — on-demand full-screen test pattern (renderer-projection/)
 ├── HTTPS server     — serves mobile VR client (port 5173)
 ├── WSS server       — real-time sync to all clients (port 5173)
 └── HTTP server      — CA certificate download for mobile devices (port 5174)
@@ -107,6 +108,8 @@ npm start
 ```
 
 The Electron window opens with the operator controls. The wall renderer opens as a second window (move it to your display wall).
+
+Use **Open Projection Output** in the operator window to open the projection test pattern. It opens fullscreen on the primary display by default. Display selection and projection mapping controls will be added separately.
 
 ## Connecting clients
 

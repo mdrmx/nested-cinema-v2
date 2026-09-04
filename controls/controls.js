@@ -7,6 +7,15 @@ const tEl = document.getElementById("t");
 
 const dur = document.getElementById("dur");
 const setDurBtn = document.getElementById("setDur");
+const openProjectionBtn = document.getElementById("openProjection");
+
+openProjectionBtn.onclick = async () => {
+  try {
+    await window.op.openProjection();
+  } catch (e) {
+    console.error(e);
+  }
+};
 
 setDurBtn.onclick = async () => {
   const d = Number(dur.value);

@@ -286,6 +286,7 @@ let controlWin;
 let wallDuration = 600;
 let qrDataUrl = null; // generated once server is up; sent to each wall window on load
 let qrPayload = null;
+let projectionWin;
 
 ipcMain.handle("op:play", () => {
   play();
@@ -310,6 +311,11 @@ ipcMain.handle("op:seek", (_e, t) => {
 
 ipcMain.handle("op:setDuration", (_e, d) => {
   wallDuration = d;
+  return { ok: true };
+});
+
+ipcMain.handle("op:openProjection", () => {
+  createProjectionWindow();
   return { ok: true };
 });
 
@@ -417,6 +423,39 @@ function createControlWindow() {
   });
 
   controlWin.loadFile(path.join(__dirname, "controls", "controls.html"));
+}
+
+function createProjectionWindow(display = screen.getPrimaryDisplay()) {
+  if (projectionWin && !projectionWin.isDestroyed()) {
+    projectionWin.focus();
+    return;
+  }
+
+  projectionWin = new BrowserWindow({
+    x: display.bounds.x,
+    y: display.bounds.y,
+    width: display.bounds.width,
+    height: display.bounds.height,
+    fullscreen: true,
+    frame: false,
+    autoHideMenuBar: true,
+    backgroundColor: "#000000",
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      backgroundThrottling: false,
+    },
+  });
+
+  projectionWin.webContents.on("console-message", (_e, level, message) => {
+    if (level >= 3) console.error("[PROJECTION]", message);
+  });
+  projectionWin.on("closed", () => {
+    projectionWin = undefined;
+  });
+  projectionWin.loadFile(
+    path.join(__dirname, "renderer-projection", "projection.html"),
+  );
 }
 
 // -------------------- Wall windows + IPC via postMessage --------------------

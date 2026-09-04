@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("op", {
   stop: () => ipcRenderer.invoke("op:stop"),
   seek: (t) => ipcRenderer.invoke("op:seek", t),
   setDuration: (d) => ipcRenderer.invoke("op:setDuration", d),
+  openProjection: () => ipcRenderer.invoke("op:openProjection"),
   setVideo: (screenIndex, videoFile) =>
     ipcRenderer.invoke("op:setVideo", { screenIndex, videoFile }),
   setMuted: (screenIndex, muted) =>
