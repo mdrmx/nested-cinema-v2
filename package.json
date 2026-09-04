@@ -5,7 +5,8 @@
   "type": "commonjs",
   "scripts": {
     "start": "electron .",
-    "gencerts": "node scripts/gencerts.js"
+    "gencerts": "node scripts/gencerts.js",
+    "test:projection-stress": "node scripts/stress-projection.js"
   },
   "dependencies": {
     "express": "^4.19.2",

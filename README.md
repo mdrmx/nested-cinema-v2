@@ -109,7 +109,7 @@ npm start
 
 The Electron window opens with the operator controls. The wall renderer opens as a second window (move it to your display wall).
 
-Use **Open Projection Output** in the operator window to open the projection test pattern. It opens fullscreen on the primary display by default. Display selection and projection mapping controls will be added separately.
+Use the **Projection output** display menu in the operator window to choose a currently connected display, then select **Open Projection Output**. The projection test pattern uses a frameless, bounds-positioned presentation window that fills the selected display. Projection mapping controls will be added separately.
 
 ## Connecting clients
 

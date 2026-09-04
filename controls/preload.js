@@ -6,7 +6,12 @@ contextBridge.exposeInMainWorld("op", {
   stop: () => ipcRenderer.invoke("op:stop"),
   seek: (t) => ipcRenderer.invoke("op:seek", t),
   setDuration: (d) => ipcRenderer.invoke("op:setDuration", d),
-  openProjection: () => ipcRenderer.invoke("op:openProjection"),
+  getDisplays: () => ipcRenderer.invoke("op:getDisplays"),
+  getProjectionState: () => ipcRenderer.invoke("op:getProjectionState"),
+  getProjectionDiagnostics: () =>
+    ipcRenderer.invoke("op:getProjectionDiagnostics"),
+  openProjection: (displayId) =>
+    ipcRenderer.invoke("op:openProjection", displayId),
   setVideo: (screenIndex, videoFile) =>
     ipcRenderer.invoke("op:setVideo", { screenIndex, videoFile }),
   setMuted: (screenIndex, muted) =>

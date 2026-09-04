@@ -191,7 +191,23 @@ class ProjectionRenderer {
 }
 
 const projectionRenderer = new ProjectionRenderer(document.body);
+window.__projectionDiagnostics = {
+  rendererInstances: 1,
+  animationLoops: 1,
+  resizeListeners: 1,
+  canvasCount: 1,
+};
 projectionRenderer.start();
-window.addEventListener("beforeunload", () => projectionRenderer.dispose(), {
-  once: true,
-});
+window.addEventListener(
+  "beforeunload",
+  () => {
+    projectionRenderer.dispose();
+    window.__projectionDiagnostics = {
+      rendererInstances: 0,
+      animationLoops: 0,
+      resizeListeners: 0,
+      canvasCount: 0,
+    };
+  },
+  { once: true },
+);

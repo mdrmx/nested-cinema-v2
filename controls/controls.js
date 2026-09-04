@@ -8,14 +8,86 @@ const tEl = document.getElementById("t");
 const dur = document.getElementById("dur");
 const setDurBtn = document.getElementById("setDur");
 const openProjectionBtn = document.getElementById("openProjection");
+const projectionDisplaySelect = document.getElementById("projectionDisplay");
+const refreshProjectionDisplaysBtn = document.getElementById(
+  "refreshProjectionDisplays",
+);
+const projectionActiveDisplay = document.getElementById(
+  "projectionActiveDisplay",
+);
+const projectionStatus = document.getElementById("projectionStatus");
+let projectionOperationInFlight = false;
 
 openProjectionBtn.onclick = async () => {
+  if (!projectionDisplaySelect.value || projectionOperationInFlight) return;
+  projectionOperationInFlight = true;
+  openProjectionBtn.disabled = true;
+  projectionStatus.textContent = "Moving projection output...";
   try {
-    await window.op.openProjection();
+    const result = await window.op.openProjection(
+      projectionDisplaySelect.value,
+    );
+    if (!result.ok) {
+      projectionStatus.textContent = result.error;
+      await refreshProjectionState();
+      return;
+    }
+    projectionStatus.textContent = "";
+    await refreshProjectionState();
   } catch (e) {
     console.error(e);
+    projectionStatus.textContent = "Unable to open projection output.";
+  } finally {
+    projectionOperationInFlight = false;
+    openProjectionBtn.disabled = projectionDisplaySelect.options.length === 0;
   }
 };
+
+function formatDisplay(display) {
+  const { width, height } = display.bounds;
+  return `Display ${display.id} - ${width} x ${height} (${display.scaleFactor}x)`;
+}
+
+async function refreshProjectionState() {
+  try {
+    const state = await window.op.getProjectionState();
+    projectionActiveDisplay.textContent = state.open
+      ? `Active projection display: ${state.displayId}`
+      : "Projection output is closed.";
+  } catch (e) {
+    console.error("getProjectionState failed", e);
+    projectionActiveDisplay.textContent = "Projection state is unavailable.";
+  }
+}
+
+async function refreshProjectionDisplays() {
+  const selectedId = projectionDisplaySelect.value;
+  projectionDisplaySelect.innerHTML = "";
+
+  try {
+    const displays = await window.op.getDisplays();
+    for (const display of displays) {
+      const option = document.createElement("option");
+      option.value = String(display.id);
+      option.textContent = formatDisplay(display);
+      option.selected = option.value === selectedId;
+      projectionDisplaySelect.appendChild(option);
+    }
+    if (displays.length === 0) {
+      projectionStatus.textContent = "No displays are available.";
+    }
+    openProjectionBtn.disabled = displays.length === 0;
+  } catch (e) {
+    console.error("getDisplays failed", e);
+    projectionStatus.textContent = "Unable to load displays.";
+    openProjectionBtn.disabled = true;
+  }
+
+  await refreshProjectionState();
+}
+
+refreshProjectionDisplaysBtn.onclick = refreshProjectionDisplays;
+refreshProjectionDisplays();
 
 setDurBtn.onclick = async () => {
   const d = Number(dur.value);

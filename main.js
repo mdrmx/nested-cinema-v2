@@ -287,6 +287,29 @@ let wallDuration = 600;
 let qrDataUrl = null; // generated once server is up; sent to each wall window on load
 let qrPayload = null;
 let projectionWin;
+let projectionDisplayId = null;
+let projectionInstanceSequence = 0;
+let projectionOperationSequence = 0;
+let projectionPendingOperationCount = 0;
+let projectionPlacementTail = Promise.resolve();
+const projectionLifecycleEvents = [];
+
+function recordProjectionEvent(type, details = {}) {
+  projectionLifecycleEvents.push({
+    operationId: details.operationId ?? null,
+    instanceId: details.instanceId ?? null,
+    type,
+    at: Date.now(),
+    ...details,
+  });
+  if (projectionLifecycleEvents.length > 50) projectionLifecycleEvents.shift();
+}
+
+function getProjectionWindows() {
+  return BrowserWindow.getAllWindows().filter(
+    (win) => win.__projectionInstanceId !== undefined,
+  );
+}
 
 ipcMain.handle("op:play", () => {
   play();
@@ -314,10 +337,118 @@ ipcMain.handle("op:setDuration", (_e, d) => {
   return { ok: true };
 });
 
-ipcMain.handle("op:openProjection", () => {
-  createProjectionWindow();
-  return { ok: true };
+function getDisplayDescriptors() {
+  return screen.getAllDisplays().map((display) => ({
+    id: display.id,
+    bounds: {
+      x: display.bounds.x,
+      y: display.bounds.y,
+      width: display.bounds.width,
+      height: display.bounds.height,
+    },
+    scaleFactor: display.scaleFactor,
+  }));
+}
+
+ipcMain.handle("op:getDisplays", () => getDisplayDescriptors());
+
+function getProjectionState() {
+  if (!projectionWin || projectionWin.isDestroyed()) {
+    projectionWin = undefined;
+    projectionDisplayId = null;
+  } else {
+    projectionDisplayId = screen.getDisplayMatching(
+      projectionWin.getBounds(),
+    ).id;
+  }
+
+  return {
+    open: Boolean(projectionWin),
+    displayId: projectionDisplayId,
+  };
+}
+
+ipcMain.handle("op:getProjectionState", () => getProjectionState());
+
+ipcMain.handle("op:openProjection", (_e, displayId) => {
+  const operationId = ++projectionOperationSequence;
+  projectionPendingOperationCount += 1;
+  const operation = projectionPlacementTail.then(() =>
+    openProjectionOnDisplay(displayId, operationId),
+  );
+  projectionPlacementTail = operation.catch(() => undefined);
+  return operation.finally(() => {
+    projectionPendingOperationCount -= 1;
+  });
 });
+
+ipcMain.handle("op:getProjectionDiagnostics", async () => {
+  const windows = getProjectionWindows();
+  let renderer = null;
+
+  if (projectionWin && !projectionWin.isDestroyed()) {
+    try {
+      renderer = await projectionWin.webContents.executeJavaScript(
+        "window.__projectionDiagnostics || { rendererInstances: 0, animationLoops: 0, resizeListeners: 0, canvasCount: document.querySelectorAll('canvas').length }",
+      );
+    } catch {
+      renderer = { unavailable: true };
+    }
+  }
+
+  return {
+    latestOperationId: projectionOperationSequence,
+    pendingOperationCount: projectionPendingOperationCount,
+    projectionWindowCount: windows.length,
+    projectionWindowInstances: windows.map((win) => ({
+      id: win.id,
+      instanceId: win.__projectionInstanceId,
+      bounds: win.getBounds(),
+      isSimpleFullScreen:
+        process.platform === "darwin" ? win.isSimpleFullScreen() : false,
+    })),
+    activeProjectionWindowId: projectionWin?.isDestroyed()
+      ? null
+      : projectionWin?.id,
+    activeProjectionInstanceId: projectionWin?.isDestroyed()
+      ? null
+      : projectionWin?.__projectionInstanceId,
+    actualDisplayId:
+      projectionWin && !projectionWin.isDestroyed()
+        ? screen.getDisplayMatching(projectionWin.getBounds()).id
+        : null,
+    renderer,
+    lifecycleEvents: projectionLifecycleEvents,
+  };
+});
+
+async function openProjectionOnDisplay(displayId, operationId) {
+  recordProjectionEvent("placement-start", {
+    operationId,
+    requestedDisplayId: displayId,
+  });
+  const display = screen
+    .getAllDisplays()
+    .find((candidate) => String(candidate.id) === String(displayId));
+  if (!display) {
+    const result = { ok: false, error: "Display no longer available" };
+    recordProjectionEvent("placement-failed", { operationId, ...result });
+    return result;
+  }
+
+  try {
+    const result = await createProjectionWindow(display, operationId);
+    return { ...result, operationId };
+  } catch (error) {
+    const result = {
+      ok: false,
+      error: error.message || "Projection placement failed",
+      operationId,
+    };
+    recordProjectionEvent("placement-failed", { operationId, ...result });
+    return result;
+  }
+}
 
 // Returns the sorted list of video filenames present in the wall media directory
 ipcMain.handle("op:listWallVideos", () => {
@@ -425,10 +556,134 @@ function createControlWindow() {
   controlWin.loadFile(path.join(__dirname, "controls", "controls.html"));
 }
 
-function createProjectionWindow(display = screen.getPrimaryDisplay()) {
+function getProjectionPlacement(win, display) {
+  const bounds = win.getBounds();
+  const matchedDisplay = screen.getDisplayMatching(bounds);
+  const matchesTarget = String(matchedDisplay.id) === String(display.id);
+
+  if (matchesTarget) projectionDisplayId = matchedDisplay.id;
+  return {
+    ok: matchesTarget,
+    displayId: matchesTarget ? matchedDisplay.id : projectionDisplayId,
+    requestedDisplayId: display.id,
+    matchedDisplayId: matchedDisplay.id,
+    bounds,
+    ...(matchesTarget
+      ? {}
+      : {
+          error: "Projection window could not be moved to the selected display",
+        }),
+  };
+}
+
+function boundsEqual(first, second) {
+  return (
+    first.x === second.x &&
+    first.y === second.y &&
+    first.width === second.width &&
+    first.height === second.height
+  );
+}
+
+function waitForSimpleFullScreenState(win, expectedState, expectedBounds) {
+  return new Promise((resolve, reject) => {
+    let attempts = 0;
+    const check = () => {
+      if (win.isDestroyed()) {
+        reject(
+          new Error("Projection window closed during presentation change"),
+        );
+        return;
+      }
+      if (
+        win.isSimpleFullScreen() === expectedState &&
+        (!expectedBounds || boundsEqual(win.getBounds(), expectedBounds))
+      ) {
+        setTimeout(resolve, 32);
+        return;
+      }
+      if (attempts++ === 30) {
+        reject(new Error("Projection presentation state did not settle"));
+        return;
+      }
+      setTimeout(check, 16);
+    };
+    check();
+  });
+}
+
+async function placeProjectionWindowOnDisplay(win, display, operationId) {
+  if (!win || win.isDestroyed()) {
+    return { ok: false, error: "Projection window is not available" };
+  }
+
+  const currentDisplay = screen.getDisplayMatching(win.getBounds());
+  recordProjectionEvent("placement-bounds-start", {
+    operationId,
+    instanceId: win.__projectionInstanceId,
+    requestedDisplayId: display.id,
+    currentDisplayId: currentDisplay.id,
+    bounds: win.getBounds(),
+  });
+  if (String(currentDisplay.id) !== String(display.id)) {
+    win.setBounds(display.bounds);
+    await new Promise((resolve) => setTimeout(resolve, 32));
+  }
+
+  if (process.platform === "darwin" && !win.isSimpleFullScreen()) {
+    win.setSimpleFullScreen(true);
+    await waitForSimpleFullScreenState(win, true, display.bounds);
+  }
+
+  const placement = getProjectionPlacement(win, display);
+  recordProjectionEvent(
+    placement.ok ? "placement-complete" : "placement-failed",
+    { operationId, instanceId: win.__projectionInstanceId, ...placement },
+  );
+  return placement;
+}
+
+async function reloadProjectionRenderer(win, operationId) {
+  const instanceId = win.__projectionInstanceId;
+  recordProjectionEvent("renderer-reload-start", { operationId, instanceId });
+  try {
+    await win.loadFile(
+      path.join(__dirname, "renderer-projection", "projection.html"),
+    );
+    recordProjectionEvent("renderer-reload-complete", {
+      operationId,
+      instanceId,
+    });
+    return { ok: true };
+  } catch {
+    recordProjectionEvent("renderer-reload-failed", {
+      operationId,
+      instanceId,
+    });
+    return { ok: false, error: "Projection renderer failed to reload" };
+  }
+}
+
+async function createProjectionWindow(display, operationId) {
   if (projectionWin && !projectionWin.isDestroyed()) {
-    projectionWin.focus();
-    return;
+    const currentDisplay = screen.getDisplayMatching(projectionWin.getBounds());
+    const moved = String(currentDisplay.id) !== String(display.id);
+    if (moved) projectionWin.hide();
+    const placement = await placeProjectionWindowOnDisplay(
+      projectionWin,
+      display,
+      operationId,
+    );
+    if (placement.ok && moved) {
+      const renderer = await reloadProjectionRenderer(
+        projectionWin,
+        operationId,
+      );
+      if (!renderer.ok) return renderer;
+      projectionWin.show();
+    }
+    if (placement.ok) projectionWin.focus();
+    return placement;
   }
 
   projectionWin = new BrowserWindow({
@@ -436,26 +691,90 @@ function createProjectionWindow(display = screen.getPrimaryDisplay()) {
     y: display.bounds.y,
     width: display.bounds.width,
     height: display.bounds.height,
-    fullscreen: true,
     frame: false,
+    fullscreenable: false,
     autoHideMenuBar: true,
     backgroundColor: "#000000",
+    show: false,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
       backgroundThrottling: false,
     },
   });
+  projectionWin.__projectionInstanceId = ++projectionInstanceSequence;
+  const instanceId = projectionWin.__projectionInstanceId;
+  recordProjectionEvent("window-created", {
+    operationId,
+    instanceId,
+    browserWindowId: projectionWin.id,
+  });
 
   projectionWin.webContents.on("console-message", (_e, level, message) => {
     if (level >= 3) console.error("[PROJECTION]", message);
   });
-  projectionWin.on("closed", () => {
-    projectionWin = undefined;
+  projectionWin.on("show", () => {
+    recordProjectionEvent("window-shown", { instanceId });
   });
-  projectionWin.loadFile(
-    path.join(__dirname, "renderer-projection", "projection.html"),
+  projectionWin.on("hide", () => {
+    recordProjectionEvent("window-hidden", { instanceId });
+  });
+  projectionWin.on("enter-full-screen", () => {
+    recordProjectionEvent("fullscreen-entered", {
+      instanceId,
+      bounds: projectionWin.getBounds(),
+    });
+  });
+  projectionWin.on("leave-full-screen", () => {
+    recordProjectionEvent("fullscreen-left", {
+      instanceId,
+      bounds: projectionWin.getBounds(),
+    });
+  });
+  projectionWin.on("move", () => {
+    recordProjectionEvent("window-moved", {
+      instanceId,
+      bounds: projectionWin.getBounds(),
+    });
+  });
+  projectionWin.on("resize", () => {
+    recordProjectionEvent("window-resized", {
+      instanceId,
+      bounds: projectionWin.getBounds(),
+    });
+  });
+  projectionWin.webContents.on("did-finish-load", () => {
+    recordProjectionEvent("renderer-loaded", { instanceId });
+  });
+  projectionWin.on("closed", () => {
+    recordProjectionEvent("window-closed", { instanceId });
+    if (projectionWin?.__projectionInstanceId === instanceId) {
+      projectionWin = undefined;
+      projectionDisplayId = null;
+    }
+  });
+
+  const placement = await placeProjectionWindowOnDisplay(
+    projectionWin,
+    display,
+    operationId,
   );
+  if (!placement.ok) {
+    projectionWin.close();
+    return placement;
+  }
+
+  recordProjectionEvent("renderer-load-start", { operationId, instanceId });
+  try {
+    await projectionWin.loadFile(
+      path.join(__dirname, "renderer-projection", "projection.html"),
+    );
+    projectionWin.show();
+  } catch {
+    projectionWin.destroy();
+    return { ok: false, error: "Projection renderer failed to load" };
+  }
+  return placement;
 }
 
 // -------------------- Wall windows + IPC via postMessage --------------------
